@@ -1,0 +1,158 @@
+/* ============================================================
+   BharatMonitor — Global Styles
+   ============================================================ */
+
+:root {
+  /* Background palette */
+  --bg:  #080c14;
+  --s1:  #0d1018;   /* card surfaces */
+  --s2:  #111520;
+  --s3:  #161c2b;
+  --s4:  #1e2639;
+
+  /* Border shades */
+  --b0:  rgba(255,255,255,0.04);
+  --b1:  rgba(255,255,255,0.08);
+  --b2:  rgba(255,255,255,0.12);
+  --b3:  rgba(255,255,255,0.20);
+
+  /* Text shades */
+  --t0:  #edf0f8;
+  --t1:  #c8d0e5;
+  --t2:  #9aa3b8;
+  --t3:  #545f78;
+
+  /* Semantic colors */
+  --acc: #f97316;   /* BharatMonitor orange accent */
+  --red: #f03e3e;
+  --yel: #f5a623;
+  --grn: #22d3a0;
+  --blu: #3d8ef0;
+  --sil: #8892a4;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  font-size: 14px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--t0);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+
+/* ── Form elements ───────────────────────────────────────── */
+input, select, textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--s2);
+  border: 1px solid var(--b1);
+  border-radius: 6px;
+  color: var(--t0);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: rgba(249,115,22,0.4);
+}
+input::placeholder, textarea::placeholder {
+  color: var(--t3);
+}
+select option {
+  background: var(--s2);
+  color: var(--t0);
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 18px;
+  background: var(--acc);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn-primary:hover { opacity: 0.88; }
+.btn-primary:active { transform: scale(0.98); }
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  background: transparent;
+  color: var(--t2);
+  border: 1px solid var(--b1);
+  border-radius: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-ghost:hover { border-color: var(--b2); color: var(--t0); }
+
+/* ── Form groups ─────────────────────────────────────────── */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.field-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--t3);
+}
+
+/* ── Animations ──────────────────────────────────────────── */
+@keyframes blink {
+  0%, 100% { opacity: 1 }
+  50% { opacity: 0.25 }
+}
+@keyframes ticker {
+  from { transform: translateX(0) }
+  to { transform: translateX(-50%) }
+}
+@keyframes spin {
+  to { transform: rotate(360deg) }
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0 }
+  to { transform: translateX(0); opacity: 1 }
+}
+@keyframes fadeIn {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}
+
+/* ── Dashboard layout fix ────────────────────────────────── */
+#root {
+  display: flex;
+  flex-direction: column;
+}
