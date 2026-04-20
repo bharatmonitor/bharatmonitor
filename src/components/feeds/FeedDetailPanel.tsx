@@ -238,35 +238,66 @@ export default function FeedDetailPanel({ trackedPoliticianNames = [], accountId
           )}
 
           {/* ── Contradiction block ── */}
-          {displayedContradiction && (
-            <div style={{
-              padding: '14px', borderRadius: '10px', marginBottom: '14px',
-              background: 'rgba(245,166,35,0.06)', border: '1px solid rgba(245,166,35,0.25)',
-            }}>
-              <div style={{ fontFamily: mono, fontSize: '8px', color: '#f5a623', marginBottom: '8px', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>⚡ {(displayedContradiction as any).contradiction_type ?? (displayedContradiction as any).contradictionType ?? "contradiction" === 'flip' ? 'POSITION FLIP DETECTED' : (displayedContradiction as any).contradiction_type ?? (displayedContradiction as any).contradictionType ?? "contradiction" === 'vote_record' ? 'VOTE RECORD CONTRADICTION' : (displayedContradiction as any).contradiction_type ?? (displayedContradiction as any).contradictionType ?? "contradiction" === 'data_gap' ? 'DATA GAP DETECTED' : 'CONTRADICTION DETECTED'}</span>
-                <span style={{ marginLeft: 'auto', padding: '2px 6px', borderRadius: '3px', background: 'rgba(245,166,35,0.15)', fontWeight: 700 }}>
-                  {(displayedContradiction as any).contradiction_score ?? (displayedContradiction as any).contradictionScore ?? 0}%
-                </span>
-              </div>
-              <div style={{ fontFamily: mono, fontSize: '7px', color: 'var(--t3)', marginBottom: '5px', letterSpacing: '0.5px' }}>HISTORICAL RECORD:</div>
-              <div style={{ fontSize: '11px', color: 'var(--t1)', lineHeight: 1.6, marginBottom: '5px' }}>
-                <span style={{ color: 'var(--t3)' }}>{((displayedContradiction as any).historical_date ?? (displayedContradiction as any).historicalDate ?? "" || '').substring(0, 7)}:</span>{' '}
-                "{(displayedContradiction as any).historical_quote ?? (displayedContradiction as any).historicalQuote ?? ""}"
-              </div>
-              {!!(((displayedContradiction as any).historical_source) ?? ((displayedContradiction as any).historicalSource)) && (
-                <div style={{ fontFamily: mono, fontSize: '8px', color: 'var(--t3)' }}>— {(displayedContradiction as any).historical_source ?? (displayedContradiction as any).historicalSource}</div>
-              )}
-              {/* Reasoning (from AI check) */}
-              {((displayedContradiction as any).reasoning) && (
-                <div style={{ marginTop: '8px', padding: '8px', background: 'rgba(245,166,35,0.05)', borderRadius: '5px', border: '1px solid rgba(245,166,35,0.12)' }}>
-                  <div style={{ fontFamily: mono, fontSize: '7px', color: 'var(--t3)', marginBottom: '3px' }}>AI REASONING:</div>
-                  <div style={{ fontSize: '10px', color: 'var(--t2)', lineHeight: 1.5 }}>
-                    {(displayedContradiction as any).reasoning}
-                  </div>
+          {displayedContradiction && (() => {
+            const c = displayedContradiction as any
+            const ctype = c.contradiction_type ?? c.contradictionType ?? 'contradiction'
+            const score = c.contradiction_score ?? c.contradictionScore ?? 0
+            const hdate = (c.historical_date ?? c.historicalDate ?? '').substring(0, 7)
+            const hquote = c.historical_quote ?? c.historicalQuote ?? ''
+            const hsource = c.historical_source ?? c.historicalSource ?? ''
+            const reasoning = c.reasoning ?? ''
+            const label = ctype === 'flip' ? 'POSITION FLIP DETECTED'
+              : ctype === 'vote_record' ? 'VOTE RECORD CONTRADICTION'
+                : ctype === 'data_gap' ? 'DATA GAP DETECTED'
+                  : 'CONTRADICTION DETECTED'
+            return (
+              <div style={{ padding: '14px', borderRadius: '10px', marginBottom: '14px', background: 'rgba(245,166,35,0.06)', border: '1px solid rgba(245,166,35,0.25)' }}>
+                <div style={{ fontFamily: mono, fontSize: '8px', color: '#f5a623', marginBottom: '8px', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>⚡ {label}</span>
+                  <span style={{ marginLeft: 'auto', padding: '2px 6px', borderRadius: '3px', background: 'rgba(245,166,35,0.15)', fontWeight: 700 }}>{score}%</span>
                 </div>
-              )}
+                <div style={{ fontFamily: mono, fontSize: '7px', color: 'var(--t3)', marginBottom: '5px', letterSpacing: '0.5px' }}>HISTORICAL RECORD:</div>
+                <div style={{ fontSize: '11px', color: 'var(--t1)', lineHeight: 1.6, marginBottom: '5px' }}>
+                  <span style={{ color: 'var(--t3)' }}>{hdate}:</span> {hquote}
+                </div>
+                {hsource ? <div style={{ fontFamily: mono, fontSize: '8px', color: 'var(--t3)' }}>— {hsource}</div> : null}
+                {reasoning ? (
+                  <div style={{ marginTop: '8px', padding: '8px', background: 'rgba(245,166,35,0.05)', borderRadius: '5px', border: '1px solid rgba(245,166,35,0.12)' }}>
+                    <div style={{ fontFamily: mono, fontSize: '7px', color: 'var(--t3)', marginBottom: '3px' }}>AI REASONING:</div>
+                    <div style={{ fontSize: '10px', color: 'var(--t2)', lineHeight: 1.5 }}>{reasoning}</div>
+                  </div>
+                ) : null}
+              </div>
+            )
+          })()}
+          <div style={{
+            padding: '14px', borderRadius: '10px', marginBottom: '14px',
+            background: 'rgba(245,166,35,0.06)', border: '1px solid rgba(245,166,35,0.25)',
+          }}>
+            <div style={{ fontFamily: mono, fontSize: '8px', color: '#f5a623', marginBottom: '8px', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>⚡ {(displayedContradiction as any).contradiction_type ?? (displayedContradiction as any).contradictionType ?? "contradiction" === 'flip' ? 'POSITION FLIP DETECTED' : (displayedContradiction as any).contradiction_type ?? (displayedContradiction as any).contradictionType ?? "contradiction" === 'vote_record' ? 'VOTE RECORD CONTRADICTION' : (displayedContradiction as any).contradiction_type ?? (displayedContradiction as any).contradictionType ?? "contradiction" === 'data_gap' ? 'DATA GAP DETECTED' : 'CONTRADICTION DETECTED'}</span>
+              <span style={{ marginLeft: 'auto', padding: '2px 6px', borderRadius: '3px', background: 'rgba(245,166,35,0.15)', fontWeight: 700 }}>
+                {(displayedContradiction as any).contradiction_score ?? (displayedContradiction as any).contradictionScore ?? 0}%
+              </span>
             </div>
+            <div style={{ fontFamily: mono, fontSize: '7px', color: 'var(--t3)', marginBottom: '5px', letterSpacing: '0.5px' }}>HISTORICAL RECORD:</div>
+            <div style={{ fontSize: '11px', color: 'var(--t1)', lineHeight: 1.6, marginBottom: '5px' }}>
+              <span style={{ color: 'var(--t3)' }}>{((displayedContradiction as any).historical_date ?? (displayedContradiction as any).historicalDate ?? "" || '').substring(0, 7)}:</span>{' '}
+              "{(displayedContradiction as any).historical_quote ?? (displayedContradiction as any).historicalQuote ?? ""}"
+            </div>
+            {!!(((displayedContradiction as any).historical_source) ?? ((displayedContradiction as any).historicalSource)) && (
+              <div style={{ fontFamily: mono, fontSize: '8px', color: 'var(--t3)' }}>— {(displayedContradiction as any).historical_source ?? (displayedContradiction as any).historicalSource}</div>
+            )}
+            {/* Reasoning (from AI check) */}
+            {((displayedContradiction as any).reasoning) && (
+              <div style={{ marginTop: '8px', padding: '8px', background: 'rgba(245,166,35,0.05)', borderRadius: '5px', border: '1px solid rgba(245,166,35,0.12)' }}>
+                <div style={{ fontFamily: mono, fontSize: '7px', color: 'var(--t3)', marginBottom: '3px' }}>AI REASONING:</div>
+                <div style={{ fontSize: '10px', color: 'var(--t2)', lineHeight: 1.5 }}>
+                  {(displayedContradiction as any).reasoning}
+                </div>
+              </div>
+            )}
+          </div>
           )}
 
           {/* Geo tags */}
