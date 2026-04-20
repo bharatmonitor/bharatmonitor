@@ -14,7 +14,7 @@ interface Props {
 }
 
 const selectSelectedItem = (s: ReturnType<typeof useDashboardStore.getState>) => s.selectedItem
-const selectCloseItem    = (s: ReturnType<typeof useDashboardStore.getState>) => s.closeItem
+const selectCloseItem = (s: ReturnType<typeof useDashboardStore.getState>) => s.closeItem
 
 const PLAT_COLOR: Record<string, string> = {
   twitter: '#1d9bf0', instagram: '#e1306c', facebook: '#1877f2',
@@ -28,16 +28,16 @@ const SENT_COLOR: Record<string, string> = {
   positive: '#22d3a0', negative: '#f03e3e', neutral: '#8892a4',
 }
 const BUCKET_COLOR: Record<string, { bg: string; fg: string; label: string }> = {
-  red:    { bg: 'rgba(240,62,62,0.12)',   fg: '#f03e3e', label: '● CRISIS'     },
-  yellow: { bg: 'rgba(245,166,35,0.12)',  fg: '#f5a623', label: '● DEVELOPING' },
-  blue:   { bg: 'rgba(61,142,240,0.12)',  fg: '#3d8ef0', label: '● POSITIVE'   },
-  silver: { bg: 'rgba(136,146,164,0.1)',  fg: '#8892a4', label: '● ARCHIVE'    },
+  red: { bg: 'rgba(240,62,62,0.12)', fg: '#f03e3e', label: '● CRISIS' },
+  yellow: { bg: 'rgba(245,166,35,0.12)', fg: '#f5a623', label: '● DEVELOPING' },
+  blue: { bg: 'rgba(61,142,240,0.12)', fg: '#3d8ef0', label: '● POSITIVE' },
+  silver: { bg: 'rgba(136,146,164,0.1)', fg: '#8892a4', label: '● ARCHIVE' },
 }
 
 const mono = 'IBM Plex Mono, monospace'
 
 export default function FeedDetailPanel({ trackedPoliticianNames = [], accountId = '' }: Props) {
-  const item      = useDashboardStore(selectSelectedItem)
+  const item = useDashboardStore(selectSelectedItem)
   const closeItem = useDashboardStore(selectCloseItem)
 
   const checkItem = useCheckSingleItem(accountId, trackedPoliticianNames)
@@ -59,18 +59,18 @@ export default function FeedDetailPanel({ trackedPoliticianNames = [], accountId
 
   if (!item) return null
 
-  const bucket    = BUCKET_COLOR[item.bucket] ?? BUCKET_COLOR.silver
+  const bucket = BUCKET_COLOR[item.bucket] ?? BUCKET_COLOR.silver
   const platColor = PLAT_COLOR[item.platform] ?? '#8892a4'
-  const platIcon  = PLAT_ICON[item.platform]  ?? '●'
+  const platIcon = PLAT_ICON[item.platform] ?? '●'
   const sentColor = SENT_COLOR[item.sentiment] ?? '#8892a4'
 
-  const date    = new Date(item.published_at)
+  const date = new Date(item.published_at)
   const dateStr = isNaN(date.getTime()) ? '' : date.toLocaleString('en-IN', {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   })
 
-  const isXPost       = item.platform === 'twitter'
+  const isXPost = item.platform === 'twitter'
   const isGoogleXPost = item.id.startsWith('gx-')
 
   const canCheckContradiction = trackedPoliticianNames.length > 0 && accountId
@@ -254,7 +254,7 @@ export default function FeedDetailPanel({ trackedPoliticianNames = [], accountId
                 <span style={{ color: 'var(--t3)' }}>{((displayedContradiction as any).historical_date ?? (displayedContradiction as any).historicalDate ?? "" || '').substring(0, 7)}:</span>{' '}
                 "{(displayedContradiction as any).historical_quote ?? (displayedContradiction as any).historicalQuote ?? ""}"
               </div>
-              {(displayedContradiction as any).historical_source ?? (displayedContradiction as any).historicalSource && (
+              {!!(((displayedContradiction as any).historical_source) ?? ((displayedContradiction as any).historicalSource)) && (
                 <div style={{ fontFamily: mono, fontSize: '8px', color: 'var(--t3)' }}>— {(displayedContradiction as any).historical_source ?? (displayedContradiction as any).historicalSource}</div>
               )}
               {/* Reasoning (from AI check) */}
@@ -309,14 +309,14 @@ export default function FeedDetailPanel({ trackedPoliticianNames = [], accountId
           {(item.views || item.shares || item.engagement) && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '8px', marginBottom: '14px' }}>
               {[
-                { label: 'VIEWS',      value: item.views      ?? 0 },
-                { label: 'SHARES',     value: item.shares     ?? 0 },
+                { label: 'VIEWS', value: item.views ?? 0 },
+                { label: 'SHARES', value: item.shares ?? 0 },
                 { label: 'ENGAGEMENT', value: item.engagement ?? 0 },
               ].map(s => (
                 <div key={s.label} style={{ background: 'var(--s2)', border: '1px solid var(--b0)', borderRadius: '7px', padding: '9px 10px', textAlign: 'center' }}>
                   <div style={{ fontFamily: mono, fontSize: '7px', color: 'var(--t3)', letterSpacing: '1px', marginBottom: '3px' }}>{s.label}</div>
                   <div style={{ fontFamily: mono, fontSize: '14px', fontWeight: 700, color: 'var(--t0)' }}>
-                    {s.value > 999999 ? `${(s.value/1000000).toFixed(1)}M` : s.value > 999 ? `${(s.value/1000).toFixed(0)}K` : s.value || '—'}
+                    {s.value > 999999 ? `${(s.value / 1000000).toFixed(1)}M` : s.value > 999 ? `${(s.value / 1000).toFixed(0)}K` : s.value || '—'}
                   </div>
                 </div>
               ))}
