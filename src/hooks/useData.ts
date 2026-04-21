@@ -499,3 +499,23 @@ export function useCheckSingleItem(accountId: string, trackedPoliticianNames: st
     },
   })
 }
+
+// ─── Unified Twitter sweep (XPOZ + Apify + GetX) ─────────────────────────────
+// Runs all three Twitter sources in parallel and merges results.
+export function useTwitterSweep(accountId: string, keywords: string[]) {
+  return useQuery({
+    queryKey: ['twitter-sweep', accountId, keywords.join(',')],
+    queryFn: async (): Promise<FeedItem[]> => {
+      if (!accountId || !keywords.length) return []
+      const { sweepAllTwitterSources } = await import('@/lib/twitterSources')
+      return sweepAllTwitterSources(keywords, accountId, {
+        maxPerKeyword: 20,
+        dateRange: 'week',
+      })
+    },
+    enabled: !!accountId && keywords.length > 0,
+    staleTime: 10 * 60_000,
+    refetchInterval: 10 * 60_000,
+    retry: 1,
+  })
+}

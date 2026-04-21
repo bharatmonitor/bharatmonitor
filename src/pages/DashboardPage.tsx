@@ -4,7 +4,7 @@ import { useAuthStore } from '@/store'
 import {
   useAccount, useFeedItems, useAIBrief, useTrendMetrics,
   useConstituencyPulse, useCompetitors, useSchemes, useIssueOwnership, useUpdateAccount,
-  useGoogleXFeed, useClientNewsFeed, useClientIngest, useContradictionChecker,
+  useGoogleXFeed, useClientNewsFeed, useClientIngest, useContradictionChecker, useTwitterSweep,
 } from '@/hooks/useData'
 import { useRealtimeFeed, useRealtimeContradictions } from '@/hooks/useRealtime'
 import { triggerIngest } from '@/lib/accounts'
@@ -49,6 +49,8 @@ export default function DashboardPage() {
   const { data: dbFeed = [], isLoading: feedLoading } = useFeedItems(accountId)
   const { data: googleXFeed = [] }    = useGoogleXFeed(accountId, account?.keywords ?? [])
   const { data: clientNewsFeed = [] } = useClientNewsFeed(accountId, account?.keywords ?? [])
+  // Unified Twitter sweep: XPOZ + Apify + GetX in parallel
+  const { data: twitterFeed = [] } = useTwitterSweep(accountId, account?.keywords ?? [])
 
   const clientIngestMutation     = useClientIngest()
   const [clientIngestRan, setClientIngestRan] = useState(false)
@@ -56,7 +58,7 @@ export default function DashboardPage() {
   // ── Merged feed ─────────────────────────────────────────────────────────────
   const feed = useMemo(() => {
     const seen = new Set<string>()
-    return [...dbFeed, ...googleXFeed, ...clientNewsFeed]
+    return [...dbFeed, ...googleXFeed, ...clientNewsFeed, ...twitterFeed]
       .filter(i => { const k = i.url || i.id; if (seen.has(k)) return false; seen.add(k); return true })
       .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
   }, [dbFeed, googleXFeed, clientNewsFeed])
