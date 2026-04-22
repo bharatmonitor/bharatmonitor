@@ -445,9 +445,9 @@ export function useClientNewsFeed(accountId: string, keywords: string[]) {
 // Subsequent useFeedItems calls will then find data in the DB.
 export function useClientIngest() {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ accountId, keywords }: { accountId: string; keywords: string[] }) => {
-      return clientSideIngest(accountId, keywords, { maxPerSource: 12 })
+  const mutation = useMutation({
+    mutationFn: async ({ accountId, keywords, politicianName }: { accountId: string; keywords: string[]; politicianName?: string }) => {
+      return clientSideIngest(accountId, keywords, { maxPerSource: 12, politicianName })
     },
     onSuccess: (result, { accountId }) => {
       if (result.saved > 0) {
@@ -458,6 +458,9 @@ export function useClientIngest() {
       }
     },
   })
+  // Expose queryClient for manual invalidation from DashboardPage
+  ;(mutation as any).client = qc
+  return mutation
 }
 
 // ─── Google → X.com live search (DataTable / Search bar) ────────────────────

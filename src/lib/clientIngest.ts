@@ -1,104 +1,78 @@
 // ============================================================
-// BharatMonitor — Client-Side Ingestion Pipeline v2
+// BharatMonitor — Client-Side Data Pipeline v3
 //
-// Sources (all CORS-safe from browser):
-//   1. Google News RSS (EN + HI) via rotating CORS proxies
-//   2. YouTube Data API v3 (CORS supported natively)
-//   3. Reddit public JSON API (with proxy fallback)
-//   4. Google CSE general news
-//   5. Meta Ads Library API
+// ARCHITECTURE (no CORS proxies needed):
 //
-// Results are upserted into Supabase bm_feed so all hooks pick them up.
+//   PRIMARY:   bm-ingest-v2 edge function
+//              → fetches Google News RSS, Nitter, YouTube, Reddit SERVER-SIDE
+//              → saves to Supabase bm_feed
+//              → useFeedItems() picks it up automatically
+//
+//   BROWSER FALLBACK (CORS-safe APIs only):
+//              → YouTube Data API v3   (Google, CORS enabled)
+//              → Google CSE            (Google, CORS enabled)
+//              → Reddit JSON API       (works from browser)
+//              → NO Google News RSS    (blocked by all proxies)
+//
+// Google News RSS is ONLY fetched server-side via edge function.
 // ============================================================
 
 import { supabaseAdmin } from '@/lib/supabase'
 import type { FeedItem } from '@/types'
 
-// ─── CORS proxy pool — tried in order, first success wins ────────────────────
-const CORS_PROXIES = [
-  'https://api.allorigins.win/raw?url=',
-  'https://corsproxy.io/?url=',
-  'https://api.codetabs.com/v1/proxy?quest=',
-  'https://thingproxy.freeboard.io/fetch/',
-]
+// ─── Keys ─────────────────────────────────────────────────────────────────────
+const YT_KEY  = import.meta.env.VITE_YOUTUBE_KEY     || ''
+const CSE_KEY = import.meta.env.VITE_GOOGLE_CSE_KEY  || ''
+const CSE_CX  = import.meta.env.VITE_GOOGLE_CSE_CX   || ''
 
-async function fetchViaCorsProxy(url: string, timeoutMs = 10000): Promise<string | null> {
-  for (const proxy of CORS_PROXIES) {
-    try {
-      const res = await fetch(`${proxy}${encodeURIComponent(url)}`, {
-        signal: AbortSignal.timeout(timeoutMs),
-        headers: { 'Accept': 'text/html,application/xml,text/xml,*/*' },
-      })
-      if (!res.ok) continue
-      const text = await res.text()
-      if (text && text.length > 50) return text
-    } catch { continue }
-  }
-  return null
-}
+// ─── Scorer ───────────────────────────────────────────────────────────────────
+const POS    = ['launched','inaugurated','achieved','success','milestone','growth','development','welfare','award','historic','praised','progress','victory','announced','inaugurated']
+const NEG    = ['scam','scandal','corruption','fraud','arrest','protest','riot','attack','exposed','resign','fake','crisis','blast','terror','controversy','accused','violence']
+const CRISIS = ['riot','flood','earthquake','bomb','blast','terror','dead','killed','murder','fire','emergency','explosion','stampede']
+const OPP    = ['congress','aap','rahul','kejriwal','owaisi','mamata','opposition','indi alliance','jumla']
+const GEO    = ['Delhi','Mumbai','Chennai','Kolkata','Hyderabad','Bengaluru','Ahmedabad','Pune','Jaipur','Lucknow','Patna','Bhopal','Varanasi','UP','Bihar','Rajasthan','Maharashtra','Gujarat','Karnataka','India','Tamil Nadu','Kerala','West Bengal','Assam','Odisha','Punjab','Haryana','Andhra Pradesh','Telangana','Chhattisgarh']
 
-async function fetchJsonViaCorsProxy(url: string, timeoutMs = 10000): Promise<any | null> {
-  const text = await fetchViaCorsProxy(url, timeoutMs)
-  if (!text) return null
-  try { return JSON.parse(text) } catch { return null }
-}
-
-// ─── Keyword scorer ──────────────────────────────────────────────────────────
-
-const POS_KW    = ['launched','inaugurated','achieved','success','milestone','growth','development','welfare','award','historic','praised','commended','progress','victory','wins','elected','announced']
-const NEG_KW    = ['scam','scandal','corruption','fraud','arrest','protest','riot','attack','exposed','resign','fake','crisis','blast','terror','controversy','accused','violence','clash','unrest','failed']
-const CRISIS_KW = ['riot','flood','earthquake','bomb','blast','terror','dead','killed','murder','fire','emergency','attack','stampede','explosion']
-const OPP_KW   = ['congress','aap','rahul','kejriwal','owaisi','mamata','opposition','indi alliance','jumla']
-const GEO_TERMS = ['Delhi','Mumbai','Chennai','Kolkata','Hyderabad','Bengaluru','Ahmedabad','Pune','Jaipur','Lucknow','Patna','Bhopal','Varanasi','UP','Bihar','Rajasthan','Maharashtra','Gujarat','Karnataka','India','Tamil Nadu','Kerala','West Bengal','Assam','Odisha','Punjab','Haryana','Jharkhand','Uttarakhand','Goa','Andhra Pradesh','Telangana','Chhattisgarh','Madhya Pradesh']
-
-function scoreText(text: string) {
-  const lower = text.toLowerCase()
-  let score = 0
-  for (const w of POS_KW)    if (lower.includes(w)) score += 0.3
-  for (const w of NEG_KW)    if (lower.includes(w)) score -= 0.3
-  for (const w of CRISIS_KW) if (lower.includes(w)) score -= 0.6
-  score = Math.max(-1, Math.min(1, score))
-  const isCrisis = CRISIS_KW.some(k => lower.includes(k))
-  const isOpp    = OPP_KW.some(k => lower.includes(k)) && score < 0
-  const sentiment: FeedItem['sentiment'] = score > 0.15 ? 'positive' : score < -0.15 ? 'negative' : 'neutral'
-  const bucket: FeedItem['bucket'] =
-    isCrisis || score < -0.5 ? 'red'    :
-    isOpp    || score < -0.2 ? 'yellow' :
-    score > 0.15             ? 'blue'   : 'silver'
+function score(text: string) {
+  const t = text.toLowerCase()
+  let s = 0
+  for (const w of POS)    if (t.includes(w)) s += 0.3
+  for (const w of NEG)    if (t.includes(w)) s -= 0.3
+  for (const w of CRISIS) if (t.includes(w)) s -= 0.6
+  s = Math.max(-1, Math.min(1, s))
+  const crisis = CRISIS.some(k => t.includes(k))
+  const opp    = OPP.some(k => t.includes(k)) && s < 0
   return {
-    sentiment, bucket,
-    tone:     Math.round(score * 5),
-    geoTags:  GEO_TERMS.filter(g => lower.includes(g.toLowerCase())),
-    topics:   [
-      ...(isCrisis                     ? ['Crisis']            : []),
-      ...(score > 0.3                  ? ['Achievement']       : []),
-      ...(lower.includes('scheme')     ? ['Scheme']            : []),
-      ...(lower.includes('election')   ? ['Election']          : []),
-      ...(isOpp                        ? ['Opposition Attack'] : []),
-      ...(lower.includes('parliament') ? ['Parliament']        : []),
-      ...(lower.includes('budget')     ? ['Economy']           : []),
-      ...(lower.includes('modi')       ? ['PM Modi']           : []),
-      ...(lower.includes('bjp')        ? ['BJP']               : []),
-      ...(lower.includes('congress')   ? ['INC']               : []),
+    sentiment: (s > 0.15 ? 'positive' : s < -0.15 ? 'negative' : 'neutral') as FeedItem['sentiment'],
+    bucket:    (crisis || s < -0.5 ? 'red' : opp || s < -0.2 ? 'yellow' : s > 0.15 ? 'blue' : 'silver') as FeedItem['bucket'],
+    tone:      Math.round(s * 5),
+    geoTags:   GEO.filter(g => t.includes(g.toLowerCase())),
+    topics:    [
+      ...(crisis               ? ['Crisis']            : []),
+      ...(s > 0.3              ? ['Achievement']       : []),
+      ...(t.includes('scheme') ? ['Scheme']            : []),
+      ...(t.includes('elect')  ? ['Election']          : []),
+      ...(opp                  ? ['Opposition Attack'] : []),
+      ...(t.includes('parlia') ? ['Parliament']        : []),
+      ...(t.includes('budget') ? ['Economy']           : []),
+      ...(t.includes('modi')   ? ['PM Modi']           : []),
+      ...(t.includes('bjp')    ? ['BJP']               : []),
+      ...(t.includes('congres')? ['INC']               : []),
     ],
   }
 }
 
-function makeFeedItem(p: {
+function item(p: {
   id: string; platform: string; headline: string; body?: string
   source: string; url: string; published_at: string; keyword: string
   views?: number; shares?: number; engagement?: number
 }): FeedItem {
-  const scored = scoreText(`${p.headline} ${p.body || ''}`)
+  const sc  = score(`${p.headline} ${p.body || ''}`)
   const now = new Date().toISOString()
   return {
-    id: p.id, account_id: '',
-    platform: p.platform as any,
-    bucket: scored.bucket, sentiment: scored.sentiment, tone: scored.tone,
-    headline: p.headline.substring(0, 220),
-    body: p.body || p.headline,
-    source: p.source, url: p.url,
-    geo_tags: scored.geoTags, topic_tags: scored.topics,
+    id: p.id, account_id: '', platform: p.platform as any,
+    bucket: sc.bucket, sentiment: sc.sentiment, tone: sc.tone,
+    headline: p.headline.substring(0, 220), body: p.body || p.headline,
+    source: p.source, url: p.url, geo_tags: sc.geoTags, topic_tags: sc.topics,
     language: /[\u0900-\u097F]/.test(p.headline) ? 'hindi' : 'english',
     views: p.views ?? 0, shares: p.shares ?? 0, engagement: p.engagement ?? 0,
     is_trending: (p.views ?? 0) > 1000,
@@ -107,216 +81,230 @@ function makeFeedItem(p: {
   }
 }
 
-// ─── 1. Google News RSS ───────────────────────────────────────────────────────
-
-function parseRSSXml(xml: string) {
-  const items: { title: string; link: string; pubDate: string; source: string }[] = []
-  const rx = /<item>([\s\S]*?)<\/item>/g
-  let m: RegExpExecArray | null
-  while ((m = rx.exec(xml)) !== null) {
-    const block = m[1]
-    const get = (tag: string) => {
-      const r = new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>|<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`)
-      const match = r.exec(block)
-      return (match?.[1] ?? match?.[2] ?? '').trim()
-    }
-    const title = get('title')
-    const link  = get('link') || get('guid')
-    if (title && link) items.push({ title, link, pubDate: get('pubDate'), source: get('source') || 'Google News' })
-  }
-  return items
-}
-
-async function fetchGoogleNewsRSS(keyword: string, lang: 'en' | 'hi' = 'en', max = 15): Promise<FeedItem[]> {
-  const q    = encodeURIComponent(lang === 'hi' ? keyword : `${keyword} india`)
-  const hl   = lang === 'hi' ? 'hi-IN' : 'en-IN'
-  const ceid = lang === 'hi' ? 'IN:hi' : 'IN:en'
-  const url  = `https://news.google.com/rss/search?q=${q}&hl=${hl}&gl=IN&ceid=${ceid}`
-  const xml  = await fetchViaCorsProxy(url, 12000)
-  if (!xml || !xml.includes('<item>')) return []
-  return parseRSSXml(xml).slice(0, max).map(p => {
-    const item = makeFeedItem({
-      id: `gnews-${lang}-${btoa(p.link).substring(0, 28).replace(/[^a-zA-Z0-9]/g, '')}-${Date.now().toString(36)}`,
-      platform: 'news', headline: p.title,
-      source: p.source.replace(/<[^>]+>/g, ''),
-      url: p.link,
-      published_at: p.pubDate ? new Date(p.pubDate).toISOString() : new Date().toISOString(),
-      keyword,
-    })
-    if (lang === 'hi') item.language = 'hindi'
-    return item
-  })
-}
-
-// ─── 2. YouTube Data API v3 ──────────────────────────────────────────────────
-
-const YT_KEY = import.meta.env.VITE_YOUTUBE_KEY || ''
-
-async function fetchYouTube(keyword: string, max = 10): Promise<FeedItem[]> {
-  if (!YT_KEY) return []
+// ─── 1. YouTube Data API v3 — works directly from browser ────────────────────
+async function fetchYouTube(kw: string, max = 15): Promise<FeedItem[]> {
+  if (!YT_KEY) { console.warn('[YT] No API key'); return [] }
   try {
-    const q   = encodeURIComponent(keyword)
-    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}+india&type=video&relevanceLanguage=hi&regionCode=IN&order=date&maxResults=${max}&key=${YT_KEY}`
+    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(kw + ' india')}&type=video&relevanceLanguage=hi&regionCode=IN&order=date&maxResults=${max}&key=${YT_KEY}`
     const res = await fetch(url, { signal: AbortSignal.timeout(12000) })
-    if (!res.ok) { console.warn('[YT]', res.status, await res.text().catch(()=>'')); return [] }
-    const data = await res.json()
-    return (data?.items ?? []).filter((i: any) => i.id?.videoId).map((i: any) => {
+    if (!res.ok) { console.warn('[YT] Error', res.status, await res.text().catch(() => '')); return [] }
+    const d = await res.json()
+    return (d?.items ?? []).filter((i: any) => i.id?.videoId).map((i: any) => {
       const s = i.snippet
-      return makeFeedItem({
-        id: `yt-${i.id.videoId}`,
-        platform: 'youtube', headline: s.title,
-        body: s.description?.substring(0, 500) || '',
-        source: s.channelTitle || 'YouTube',
-        url: `https://youtube.com/watch?v=${i.id.videoId}`,
-        published_at: s.publishedAt, keyword,
-      })
+      return item({ id: `yt-${i.id.videoId}`, platform: 'youtube', headline: s.title, body: s.description?.substring(0, 300) || '', source: s.channelTitle || 'YouTube', url: `https://youtube.com/watch?v=${i.id.videoId}`, published_at: s.publishedAt, keyword: kw })
     })
-  } catch (e) { console.warn('[YT] error:', e); return [] }
+  } catch (e) { console.warn('[YT] fetch error:', e); return [] }
 }
 
-// ─── 3. Reddit ───────────────────────────────────────────────────────────────
-
-async function fetchReddit(keyword: string, max = 10): Promise<FeedItem[]> {
-  const subs = ['india', 'IndianPolitics', 'IndiaSpeaks']
-  const items: FeedItem[] = []
-  for (const sub of subs) {
-    const q   = encodeURIComponent(keyword)
-    const url = `https://www.reddit.com/r/${sub}/search.json?q=${q}&sort=new&restrict_sr=on&limit=${Math.ceil(max / subs.length)}&raw_json=1`
-    let data: any = null
-    try {
-      const res = await fetch(url, { headers: { 'User-Agent': 'BharatMonitor/2.0' }, signal: AbortSignal.timeout(8000) })
-      if (res.ok) data = await res.json()
-    } catch { data = await fetchJsonViaCorsProxy(url, 10000) }
-    if (!data?.data?.children) continue
-    for (const child of data.data.children) {
-      const p = child.data
-      if (!p?.id) continue
-      items.push(makeFeedItem({
-        id: `reddit-${p.id}`, platform: 'reddit',
-        headline: p.title, body: p.selftext?.substring(0, 500) ?? '',
-        source: `r/${p.subreddit}`,
-        url: `https://reddit.com${p.permalink}`,
-        published_at: p.created_utc ? new Date(p.created_utc * 1000).toISOString() : new Date().toISOString(),
-        keyword, engagement: (p.score ?? 0) + (p.num_comments ?? 0),
-      }))
-    }
-  }
-  return items
-}
-
-// ─── 4. Google CSE general news ──────────────────────────────────────────────
-
-const CSE_KEY = import.meta.env.VITE_GOOGLE_CSE_KEY || ''
-const CSE_CX  = import.meta.env.VITE_GOOGLE_CSE_CX  || ''
-
-async function fetchGoogleCSENews(keyword: string, max = 10): Promise<FeedItem[]> {
-  if (!CSE_KEY || !CSE_CX) return []
+// ─── 2. Google CSE — searches all news sites, works from browser ──────────────
+async function fetchCSENews(kw: string, max = 10): Promise<FeedItem[]> {
+  if (!CSE_KEY || !CSE_CX) { console.warn('[CSE] Missing key/cx'); return [] }
   try {
     const url = new URL('https://www.googleapis.com/customsearch/v1')
     url.searchParams.set('key', CSE_KEY)
     url.searchParams.set('cx',  CSE_CX)
-    url.searchParams.set('q',   `${keyword} india news`)
+    url.searchParams.set('q',   `${kw} india news`)
     url.searchParams.set('num', String(Math.min(max, 10)))
-    url.searchParams.set('dateRestrict', 'w')
+    url.searchParams.set('dateRestrict', 'w2') // last 2 weeks
     url.searchParams.set('gl',  'in')
-    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) })
-    if (!res.ok) return []
-    const data = await res.json()
-    return (data?.items ?? [])
-      .filter((r: any) => !r.link?.includes('x.com/') && !r.link?.includes('twitter.com/'))
-      .map((r: any) => makeFeedItem({
-        id: `cse-${btoa(r.link).substring(0, 28).replace(/[^a-zA-Z0-9]/g, '')}-${Date.now().toString(36)}`,
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(12000) })
+    if (!res.ok) { console.warn('[CSE] Error', res.status); return [] }
+    const d = await res.json()
+    if (d?.error) { console.warn('[CSE] API error:', d.error.message); return [] }
+    return (d?.items ?? [])
+      .filter((r: any) => !r.link?.includes('x.com') && !r.link?.includes('twitter.com'))
+      .map((r: any) => item({
+        id: `cse-${btoa(r.link).substring(0, 24).replace(/[^a-zA-Z0-9]/g, '')}-${Date.now().toString(36)}`,
         platform: 'news', headline: r.title, body: r.snippet || '',
         source: r.displayLink || 'Web', url: r.link,
-        published_at: new Date().toISOString(), keyword,
+        published_at: new Date().toISOString(), keyword: kw,
       }))
   } catch (e) { console.warn('[CSE] error:', e); return [] }
 }
 
-// ─── Main exports ─────────────────────────────────────────────────────────────
+// ─── 3. Reddit JSON API — works from browser (no auth) ───────────────────────
+async function fetchReddit(kw: string, max = 8): Promise<FeedItem[]> {
+  const subs = ['india', 'IndianPolitics', 'IndiaSpeaks']
+  const results: FeedItem[] = []
+  for (const sub of subs) {
+    try {
+      const url = `https://www.reddit.com/r/${sub}/search.json?q=${encodeURIComponent(kw)}&sort=new&restrict_sr=on&limit=${Math.ceil(max / subs.length)}&raw_json=1`
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'BharatMonitor/2.0 political-intelligence-platform' },
+        signal: AbortSignal.timeout(8000),
+      })
+      if (!res.ok) continue
+      const d = await res.json()
+      for (const c of (d?.data?.children ?? [])) {
+        const p = c.data
+        if (!p?.id || !p.title) continue
+        results.push(item({
+          id: `reddit-${p.id}`, platform: 'reddit',
+          headline: p.title, body: p.selftext?.substring(0, 400) || '',
+          source: `r/${p.subreddit}`,
+          url: `https://reddit.com${p.permalink}`,
+          published_at: p.created_utc ? new Date(p.created_utc * 1000).toISOString() : new Date().toISOString(),
+          keyword: kw, engagement: (p.score || 0) + (p.num_comments || 0),
+        }))
+      }
+    } catch { continue }
+  }
+  return results
+}
 
+// ─── 4. Google CSE → X.com (Twitter) ─────────────────────────────────────────
+const GETX_KEY = import.meta.env.VITE_GETX_API || import.meta.env.VITE_GOOGLE_CSE_KEY || ''
+
+async function fetchCSETwitter(kw: string, max = 10): Promise<FeedItem[]> {
+  if (!GETX_KEY || !CSE_CX) return []
+  try {
+    const url = new URL('https://www.googleapis.com/customsearch/v1')
+    url.searchParams.set('key',        GETX_KEY)
+    url.searchParams.set('cx',         CSE_CX)
+    url.searchParams.set('q',          `${kw} india`)
+    url.searchParams.set('siteSearch', 'x.com')
+    url.searchParams.set('num',        String(Math.min(max, 10)))
+    url.searchParams.set('dateRestrict', 'w')
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) })
+    if (!res.ok) return []
+    const d = await res.json()
+    return (d?.items ?? []).map((r: any) => {
+      const mHandle = /(?:x|twitter)\.com\/([^/]+)/.exec(r.link)
+      const handle  = mHandle?.[1] || 'X'
+      const mId     = /\/status\/(\d+)/.exec(r.link)
+      const tid     = mId?.[1] || `cset-${Date.now()}`
+      const text    = r.snippet?.replace(/\n/g, ' ').trim() || r.title || ''
+      return item({
+        id: `getx-${tid}`, platform: 'twitter',
+        headline: r.title?.substring(0, 220) || text.substring(0, 220), body: text,
+        source: `@${handle}`, url: r.link?.startsWith('http') ? r.link : `https://x.com/${handle}/status/${tid}`,
+        published_at: new Date().toISOString(), keyword: kw,
+      })
+    })
+  } catch { return [] }
+}
+
+// ─── Edge function trigger ────────────────────────────────────────────────────
+const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL || ''
+const SERVICE_KEY   = import.meta.env.VITE_SUPABASE_SERVICE_KEY || ''
+
+export async function triggerEdgeIngest(
+  accountId: string, politicianName: string, keywords: string[]
+): Promise<{ ok: boolean; inserted: number; error?: string }> {
+  if (!SUPABASE_URL) return { ok: false, inserted: 0, error: 'No Supabase URL' }
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/bm-ingest-v2`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(SERVICE_KEY ? { Authorization: `Bearer ${SERVICE_KEY}` } : {}),
+      },
+      body: JSON.stringify({ accountId, politicianName, keywords, maxPerSource: 20 }),
+      signal: AbortSignal.timeout(45000),
+    })
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '')
+      console.warn('[edgeIngest] HTTP error', res.status, txt)
+      return { ok: false, inserted: 0, error: `HTTP ${res.status}: ${txt}` }
+    }
+    const data = await res.json()
+    console.log('[edgeIngest] Success:', data)
+    return { ok: true, inserted: data.inserted || 0 }
+  } catch (e: any) {
+    console.warn('[edgeIngest] Exception:', e.message)
+    return { ok: false, inserted: 0, error: e.message }
+  }
+}
+
+// ─── Browser fallback fetch (no Google News RSS) ──────────────────────────────
+export async function clientFetchNews(
+  accountId: string, keywords: string[], maxPerKeyword = 12,
+): Promise<FeedItem[]> {
+  console.log('[clientFetch] Starting browser fetch for', keywords.length, 'keywords')
+  const tasks: Promise<FeedItem[]>[] = []
+
+  for (const kw of keywords.slice(0, 5)) {
+    tasks.push(fetchYouTube(kw, maxPerKeyword).catch(() => []))
+    tasks.push(fetchCSENews(kw, Math.ceil(maxPerKeyword / 2)).catch(() => []))
+    tasks.push(fetchReddit(kw, Math.ceil(maxPerKeyword / 3)).catch(() => []))
+    tasks.push(fetchCSETwitter(kw, Math.ceil(maxPerKeyword / 2)).catch(() => []))
+  }
+
+  const settled = await Promise.allSettled(tasks)
+  const all: FeedItem[] = []
+  for (const r of settled) if (r.status === 'fulfilled') all.push(...r.value)
+
+  const seen = new Set<string>()
+  const deduped = all
+    .map(i => ({ ...i, account_id: accountId }))
+    .filter(i => { const k = i.url || i.id; if (seen.has(k)) return false; seen.add(k); return true })
+    .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
+
+  console.log(`[clientFetch] Got ${deduped.length} items (YT+CSE+Reddit+X)`)
+  return deduped
+}
+
+// ─── Full ingest: edge function primary, browser fallback ─────────────────────
 export interface IngestResult {
-  total: number; saved: number
+  total: number; saved: number; source: 'edge' | 'browser'
   sources: Record<string, number>; errors: string[]
 }
 
 export async function clientSideIngest(
   accountId: string, keywords: string[],
-  options?: { maxPerSource?: number; skipSave?: boolean }
+  options?: { maxPerSource?: number; skipSave?: boolean; politicianName?: string }
 ): Promise<IngestResult> {
-  const maxPer = options?.maxPerSource ?? 12
-  const allItems: FeedItem[] = []
   const errors: string[] = []
-  const sources: Record<string, number> = {}
 
-  const tasks: Promise<{ source: string; items: FeedItem[] }>[] = []
+  // Step 1: Try edge function (server-side, most reliable)
+  const edgeResult = await triggerEdgeIngest(
+    accountId,
+    options?.politicianName || keywords[0] || '',
+    keywords
+  )
 
-  for (const kw of keywords.slice(0, 6)) {
-    tasks.push(fetchGoogleNewsRSS(kw, 'en', maxPer).then(i => ({ source: 'gnews-en', items: i })).catch(e => { errors.push(`GNews EN [${kw}]: ${e}`); return { source: 'gnews-en', items: [] } }))
-    tasks.push(fetchGoogleNewsRSS(kw, 'hi', Math.ceil(maxPer / 2)).then(i => ({ source: 'gnews-hi', items: i })).catch(e => { errors.push(`GNews HI [${kw}]: ${e}`); return { source: 'gnews-hi', items: [] } }))
-    tasks.push(fetchYouTube(kw, Math.ceil(maxPer / 2)).then(i => ({ source: 'youtube', items: i })).catch(e => { errors.push(`YT [${kw}]: ${e}`); return { source: 'youtube', items: [] } }))
-    tasks.push(fetchReddit(kw, Math.ceil(maxPer / 2)).then(i => ({ source: 'reddit', items: i })).catch(e => { errors.push(`Reddit [${kw}]: ${e}`); return { source: 'reddit', items: [] } }))
-  }
-  for (const kw of keywords.slice(0, 3)) {
-    tasks.push(fetchGoogleCSENews(kw, Math.ceil(maxPer / 2)).then(i => ({ source: 'cse', items: i })).catch(() => ({ source: 'cse', items: [] })))
-  }
-
-  const results = await Promise.allSettled(tasks)
-  for (const r of results) {
-    if (r.status !== 'fulfilled') continue
-    sources[r.value.source] = (sources[r.value.source] ?? 0) + r.value.items.length
-    allItems.push(...r.value.items.map(i => ({ ...i, account_id: accountId })))
+  if (edgeResult.ok && edgeResult.inserted > 0) {
+    console.log(`[ingest] Edge function success: ${edgeResult.inserted} items`)
+    return { total: edgeResult.inserted, saved: edgeResult.inserted, source: 'edge', sources: { edge: edgeResult.inserted }, errors }
   }
 
-  const seen = new Set<string>()
-  const deduped = allItems.filter(i => { const k = i.url || i.id; if (seen.has(k)) return false; seen.add(k); return true })
-  console.log(`[clientIngest] ${deduped.length} items from sources:`, sources)
+  if (!edgeResult.ok) {
+    errors.push(`Edge fn: ${edgeResult.error}`)
+    console.warn('[ingest] Edge function failed, using browser fallback')
+  } else {
+    console.log('[ingest] Edge function returned 0 items, using browser fallback')
+  }
 
-  let saved = 0
-  if (!options?.skipSave && deduped.length > 0) {
+  // Step 2: Browser fallback (YouTube + CSE + Reddit — no CORS proxy needed)
+  const items = await clientFetchNews(accountId, keywords, options?.maxPerSource ?? 12)
+
+  if (!options?.skipSave && items.length > 0) {
     try {
-      const rows = deduped.map(item => ({
-        id: item.id, account_id: item.account_id,
-        platform: item.platform, bucket: item.bucket,
-        sentiment: item.sentiment, tone: item.tone,
-        headline: item.headline, title: item.headline,
-        body: item.body || item.headline,
-        source: item.source, source_name: item.source, source_type: item.platform,
-        url: item.url, geo_tags: item.geo_tags, topic_tags: item.topic_tags,
-        language: item.language, views: item.views ?? 0, shares: item.shares ?? 0,
-        engagement: item.engagement ?? 0, is_trending: item.is_trending ?? false,
-        published_at: item.published_at, fetched_at: item.fetched_at,
-        keyword: item.keyword,
+      const rows = items.map(i => ({
+        id: i.id, account_id: i.account_id, platform: i.platform,
+        bucket: i.bucket, sentiment: i.sentiment, tone: i.tone,
+        headline: i.headline, title: i.headline, body: i.body || i.headline,
+        source: i.source, source_name: i.source, source_type: i.platform,
+        url: i.url, geo_tags: i.geo_tags, topic_tags: i.topic_tags,
+        language: i.language, views: i.views ?? 0, shares: i.shares ?? 0,
+        engagement: i.engagement ?? 0, is_trending: i.is_trending ?? false,
+        published_at: i.published_at, fetched_at: i.fetched_at, keyword: i.keyword,
       }))
-      const { error } = await supabaseAdmin.from('bm_feed').upsert(rows, { onConflict: 'id', ignoreDuplicates: true })
+      const { error } = await supabaseAdmin.from('bm_feed')
+        .upsert(rows, { onConflict: 'id', ignoreDuplicates: true })
       if (error) {
-        console.warn('[clientIngest] bm_feed error:', error.message)
-        const { error: e2 } = await supabaseAdmin.from('feed_items').upsert(rows, { onConflict: 'id', ignoreDuplicates: true })
-        if (!e2) saved = rows.length
-      } else { saved = rows.length }
-      console.log(`[clientIngest] Saved ${saved} items`)
-    } catch (e: any) { errors.push(`Save: ${e.message}`) }
+        errors.push(`DB save: ${error.message}`)
+        console.warn('[ingest] bm_feed save error:', error.message)
+      } else {
+        console.log(`[ingest] Saved ${rows.length} items via browser fallback`)
+      }
+    } catch (e: any) {
+      errors.push(`Save exception: ${e.message}`)
+    }
   }
 
-  return { total: deduped.length, saved, sources, errors }
-}
+  const sources: Record<string, number> = {}
+  for (const i of items) sources[i.platform] = (sources[i.platform] || 0) + 1
 
-export async function clientFetchNews(
-  accountId: string, keywords: string[], maxPerKeyword = 12,
-): Promise<FeedItem[]> {
-  const tasks: Promise<FeedItem[]>[] = []
-  for (const kw of keywords.slice(0, 5)) {
-    tasks.push(fetchGoogleNewsRSS(kw, 'en', maxPerKeyword).catch(() => []))
-    tasks.push(fetchGoogleNewsRSS(kw, 'hi', Math.ceil(maxPerKeyword / 3)).catch(() => []))
-    tasks.push(fetchYouTube(kw, Math.ceil(maxPerKeyword / 3)).catch(() => []))
-    tasks.push(fetchReddit(kw, Math.ceil(maxPerKeyword / 3)).catch(() => []))
-  }
-  const results = await Promise.allSettled(tasks)
-  const all: FeedItem[] = []
-  for (const r of results) if (r.status === 'fulfilled') all.push(...r.value)
-  const seen = new Set<string>()
-  return all
-    .map(i => ({ ...i, account_id: accountId }))
-    .filter(i => { const k = i.url || i.id; if (seen.has(k)) return false; seen.add(k); return true })
-    .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
+  return { total: items.length, saved: items.length, source: 'browser', sources, errors }
 }
