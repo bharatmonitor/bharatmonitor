@@ -153,7 +153,7 @@ async function fetchReddit(kw: string, max = 8): Promise<FeedItem[]> {
 }
 
 // ─── 4. Google CSE → X.com (Twitter) ─────────────────────────────────────────
-const GETX_KEY = import.meta.env.VITE_GETX_API || import.meta.env.VITE_GOOGLE_CSE_KEY || ''
+const GETX_KEY = import.meta.env.VITE_GOOGLE_CSE_KEY || '' // GetX uses same Google CSE key
 
 async function fetchCSETwitter(kw: string, max = 10): Promise<FeedItem[]> {
   if (!GETX_KEY || !CSE_CX) return []
@@ -221,13 +221,16 @@ export async function clientFetchNews(
   accountId: string, keywords: string[], maxPerKeyword = 12,
 ): Promise<FeedItem[]> {
   console.log('[clientFetch] Starting browser fetch for', keywords.length, 'keywords')
+  // Only use CORS-safe Google APIs — YouTube quota and Reddit CORS are unreliable
+  // CSE: general news search (requires valid key + billing enabled in Google Console)
+  // GetX: CSE restricted to x.com
   const tasks: Promise<FeedItem[]>[] = []
 
   for (const kw of keywords.slice(0, 5)) {
-    tasks.push(fetchYouTube(kw, maxPerKeyword).catch(() => []))
     tasks.push(fetchCSENews(kw, Math.ceil(maxPerKeyword / 2)).catch(() => []))
-    tasks.push(fetchReddit(kw, Math.ceil(maxPerKeyword / 3)).catch(() => []))
     tasks.push(fetchCSETwitter(kw, Math.ceil(maxPerKeyword / 2)).catch(() => []))
+    // YouTube only if quota not exceeded (try but catch gracefully)
+    tasks.push(fetchYouTube(kw, 5).catch(() => []))
   }
 
   const settled = await Promise.allSettled(tasks)
@@ -240,7 +243,7 @@ export async function clientFetchNews(
     .filter(i => { const k = i.url || i.id; if (seen.has(k)) return false; seen.add(k); return true })
     .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
 
-  console.log(`[clientFetch] Got ${deduped.length} items (YT+CSE+Reddit+X)`)
+  console.log(`[clientFetch] Got ${deduped.length} items (CSE+GetX+YT)`)
   return deduped
 }
 

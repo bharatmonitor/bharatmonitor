@@ -16,7 +16,7 @@ import type { FeedItem } from '@/types'
 
 const XPOZ_KEY  = import.meta.env.VITE_XPOZ_API_KEY  || ''
 const APIFY_KEY = import.meta.env.VITE_APIFY_API_KEY  || ''
-const GETX_KEY  = import.meta.env.VITE_GETX_API       || import.meta.env.VITE_GOOGLE_CSE_KEY || ''
+const GETX_KEY  = import.meta.env.VITE_GOOGLE_CSE_KEY || '' // Use Google CSE key for X.com search
 const CSE_CX    = import.meta.env.VITE_GOOGLE_CSE_CX  || ''
 
 // ─── Shared scorer ────────────────────────────────────────────────────────────
