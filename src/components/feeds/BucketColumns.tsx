@@ -64,9 +64,9 @@ function BucketColumn({ bucket, items }: { bucket: BucketColor; items: FeedItem[
   }, [])
 
   return (
-    <div id={`bcol-${bucket}`} style={{ borderRight: '1px solid var(--b0)', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+    <div id={`bcol-${bucket}`} style={{ borderRight: '1px solid var(--b0)', display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, flex: 1 }}>
       {/* Column header */}
-      <div style={{ padding: '8px 9px 6px', borderBottom: '1px solid var(--b0)', position: 'sticky', top: '120px', zIndex: 100, background: cfg.bg }}>
+      <div style={{ padding: '8px 9px 6px', borderBottom: '1px solid var(--b0)', position: 'sticky', top: '118px', zIndex: 100, background: cfg.bg }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: cfg.color, flexShrink: 0, animation: cfg.live ? 'blink 1.4s infinite' : 'none' }} />
           <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '8px', letterSpacing: '2px', fontWeight: 500, color: cfg.color }}>{cfg.label}</span>
@@ -80,7 +80,7 @@ function BucketColumn({ bucket, items }: { bucket: BucketColor; items: FeedItem[
         ref={scrollRef}
         onMouseEnter={() => { pausedRef.current = true }}
         onMouseLeave={() => { pausedRef.current = false }}
-        style={{ overflowY: 'auto', height: '520px', scrollbarWidth: 'thin', scrollbarColor: 'var(--b2) transparent' }}>
+        style={{ overflowY: 'auto', flex: 1, scrollbarWidth: 'thin', scrollbarColor: 'var(--b2) transparent' }}>
         {grouped.length === 0 ? (
           <div style={{ padding: '20px', textAlign: 'center', color: 'var(--t3)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px' }}>NO ITEMS</div>
         ) : (
@@ -119,9 +119,9 @@ export default function BucketColumns({ feed }: Props) {
   const cols = viewMode === '4col' ? 'repeat(4,1fr)' : 'repeat(2,1fr)'
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: cols, flex: 1 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: cols, flex: 1, minHeight: 0, overflow: 'hidden' }}>
       {BUCKETS.map(b => (
-        <div key={b}><BucketColumn bucket={b} items={byBucket[b]} /></div>
+        <BucketColumn key={b} bucket={b} items={byBucket[b]} />
       ))}
     </div>
   )

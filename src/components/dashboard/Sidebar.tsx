@@ -19,8 +19,8 @@ function Section({ title, badge, children }: { title: string; badge?: string; ch
 function AIAnalysis({ brief }: { brief: AIBrief | null }) {
   if (!brief) return (
     <Section title="AI ANALYSIS" badge="LIVE">
-      <div style={{ fontFamily:'IBM Plex Mono, monospace', fontSize:'9px', color:'var(--t3)', textAlign:'center', padding:'12px 0' }}>
-        No AI brief yet — data ingesting…
+      <div style={{ fontFamily:'IBM Plex Mono, monospace', fontSize:'9px', color:'var(--t3)', textAlign:'center', padding:'12px 0', lineHeight: 1.8 }}>
+        Feed loading — AI analysis<br />generates once data arrives.
       </div>
     </Section>
   )

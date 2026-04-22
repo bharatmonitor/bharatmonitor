@@ -61,7 +61,7 @@ export default function DashboardPage() {
     return [...dbFeed, ...googleXFeed, ...clientNewsFeed, ...twitterFeed]
       .filter(i => { const k = i.url || i.id; if (seen.has(k)) return false; seen.add(k); return true })
       .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
-  }, [dbFeed, googleXFeed, clientNewsFeed])
+  }, [dbFeed, googleXFeed, clientNewsFeed, twitterFeed])
 
   const { data: brief = null }        = useAIBrief(accountId)
   const { data: trends = [] }         = useTrendMetrics(accountId)
@@ -258,8 +258,8 @@ export default function DashboardPage() {
         <PlatformFilter />
         {trends.length > 0 && <TrendStrip trends={trends} />}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', flex: 1, overflow: 'hidden', minHeight: 0 }}>
-          <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', flex: 1, overflow: 'hidden', minHeight: 0, maxHeight: 'calc(100vh - 154px)' }}>
+          <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             {feedLoading && feed.length === 0 ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px' }}>
                 FETCHING INTELLIGENCE…

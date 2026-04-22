@@ -90,27 +90,55 @@ function tone2sent(tone: number): string {
 }
 
 // ─── AI Brief ─────────────────────────────────────────────────────────────────
+// Tries DB first, falls back to generating from live feed data client-side.
 export function useAIBrief(accountId: string) {
   return useQuery({
     queryKey: ['brief', accountId],
     queryFn: async (): Promise<AIBrief | null> => {
       if (!accountId) return null
-      const { data } = await supabase
-        .from('bm_analysis').select('*').eq('account_id', accountId)
-        .order('created_at', { ascending: false }).limit(1).maybeSingle()
-      if (!data) return null
+      // Try DB first
+      try {
+        const { data } = await supabase
+          .from('bm_analysis').select('*').eq('account_id', accountId)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle()
+        if (data) {
+          return {
+            id: data.id || accountId, account_id: accountId,
+            situation_summary: data.summary || 'Monitoring active.',
+            pattern_analysis: data.opposition_activity || 'No pattern data yet.',
+            opportunities: (data.top_narratives || []).map((n: string, i: number) => ({
+              id: `opp-${i}`, score: 75 - i * 5, politician: '', description: n,
+              current_statement: '', historical_statement: '', confidence: 80,
+              type: 'contradiction' as const,
+            })),
+            ticker_items: (data.ticker_items || []).slice(0, 8),
+            generated_at: data.created_at || new Date().toISOString(),
+            next_refresh_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+          } as AIBrief
+        }
+      } catch { /* fall through to live generation */ }
+      // Generate AI brief from live feed when DB has no brief yet
+      const { data: feedData } = await supabase
+        .from('bm_feed').select('headline, bucket, sentiment, source, keyword, published_at')
+        .eq('account_id', accountId).order('published_at', { ascending: false }).limit(50)
+      const items = feedData || []
+      if (!items.length) return null
+      const crisis  = items.filter((i: any) => i.bucket === 'red')
+      const opp     = items.filter((i: any) => i.bucket === 'yellow')
+      const pos     = items.filter((i: any) => i.sentiment === 'positive')
+      const ticker  = items.slice(0, 10).map((i: any, idx: number) => ({
+        id: `tk-${idx}`, created_at: i.published_at || new Date().toISOString(),
+        bucket: (i.bucket || 'silver') as any,
+        tag: (i.bucket === 'red' ? 'CRISIS' : i.bucket === 'yellow' ? 'OPP' : i.sentiment === 'positive' ? 'POSITIVE' : 'INTEL') as any,
+        text: `${(i.source || '').toUpperCase()} — ${(i.headline || '').slice(0, 120)}`,
+      }))
       return {
-        id: data.id || accountId,
-        account_id: accountId,
-        situation_summary: data.summary || 'Monitoring active.',
-        pattern_analysis: data.opposition_activity || 'No pattern data yet.',
-        opportunities: (data.top_narratives || []).map((n: string, i: number) => ({
-          id: `opp-${i}`, score: 75 - i * 5, politician: '', description: n,
-          current_statement: '', historical_statement: '', confidence: 80,
-          type: 'contradiction' as const,
-        })),
-        ticker_items: (data.ticker_items || []).slice(0, 8),
-        generated_at: data.created_at || new Date().toISOString(),
+        id: `live-brief-${accountId}`, account_id: accountId,
+        situation_summary: `Live monitoring active. ${items.length} items tracked. ${crisis.length > 0 ? `⚡ ${crisis.length} crisis signals detected.` : 'No crisis signals.'} ${pos.length} positive mentions.`,
+        pattern_analysis: opp.length > 0 ? `${opp.length} opposition pressure points flagged — monitor developing stories.` : 'No significant opposition pressure currently detected.',
+        opportunities: [],
+        ticker_items: ticker,
+        generated_at: new Date().toISOString(),
         next_refresh_at: new Date(Date.now() + 5 * 60_000).toISOString(),
       } as AIBrief
     },
