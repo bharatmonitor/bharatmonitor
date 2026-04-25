@@ -141,7 +141,7 @@ create index if not exists contradictions_account_idx on contradictions(account_
 ```bash
 npm install -g supabase
 supabase login
-supabase link --project-ref bmxrsfyaujcppaqvtnfx
+supabase link --project-ref ylajerluygbeiqybkgtx
 
 # Deploy all three functions
 supabase functions deploy bm-ingest-v2
@@ -167,7 +167,7 @@ supabase secrets set \
 
 | Key | Value |
 |-----|-------|
-| VITE_SUPABASE_URL | https://bmxrsfyaujcppaqvtnfx.supabase.co |
+| VITE_SUPABASE_URL | https://ylajerluygbeiqybkgtx.supabase.co |
 | VITE_SUPABASE_ANON_KEY | sb_publishable_... |
 | VITE_SUPABASE_SERVICE_KEY | eyJhbGci... (the full service role JWT) |
 | VITE_GOOGLE_CSE_KEY | AIzaSyCSp3s... |

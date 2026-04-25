@@ -21,7 +21,7 @@ import type { FeedItem, Contradiction } from '@/types'
 
 const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_URL
   ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`
-  : 'https://bmxrsfyaujcppaqvtnfx.supabase.co/functions/v1'
+  : 'https://ylajerluygbeiqybkgtx.supabase.co/functions/v1'
 
 const CSE_KEY = import.meta.env.VITE_GOOGLE_CSE_KEY || ''
 const CSE_CX  = import.meta.env.VITE_GOOGLE_CSE_CX  || ''

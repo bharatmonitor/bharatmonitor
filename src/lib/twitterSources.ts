@@ -74,17 +74,22 @@ export async function fetchXpozTweets(
   if (!SUPABASE_URL) return []
 
   try {
+    // Always send ANON_KEY as apikey header - required by Supabase edge functions
+    // Use SERVICE_KEY as Bearer if available, otherwise ANON_KEY
+    const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+    const authKey  = SERVICE_KEY || ANON_KEY
     const res = await fetch(`${SUPABASE_URL}/functions/v1/bm-xpoz-fetch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(SERVICE_KEY ? { Authorization: `Bearer ${SERVICE_KEY}` } : {}),
+        'Authorization': `Bearer ${authKey}`,
+        'apikey': ANON_KEY,
       },
       body: JSON.stringify({
         keywords:      keywords.slice(0, 5),
         startDate:     options?.startDate || new Date(Date.now() - 7 * 86400000).toISOString().substring(0, 10),
         maxPerKeyword: options?.maxPerKeyword || 20,
-        xpozKey:       XPOZ_KEY,   // passed to edge fn so it can auth to XPOZ
+        xpozKey:       XPOZ_KEY,
       }),
       signal: AbortSignal.timeout(30000),
     })

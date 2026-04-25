@@ -71,7 +71,7 @@ export function useFeedItems(accountId: string) {
         .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
     },
     enabled: !!accountId,
-    refetchInterval: 60_000,
+    refetchInterval: 3 * 60_000,
     staleTime: 30_000,
     retry: 1,
   })
@@ -546,7 +546,7 @@ export function useTwitterSweep(accountId: string, keywords: string[]) {
     },
     enabled: !!accountId && keywords.length > 0,
     staleTime: 10 * 60_000,
-    refetchInterval: 10 * 60_000,
+    refetchInterval: 30 * 60_000,
     retry: 1,
   })
 }

@@ -24,7 +24,7 @@ Open http://localhost:5173
 ## Environment variables needed for Vercel
 
 ```
-VITE_SUPABASE_URL=https://bmxrsfyaujcppaqvtnfx.supabase.co
+VITE_SUPABASE_URL=https://ylajerluygbeiqybkgtx.supabase.co
 VITE_SUPABASE_ANON_KEY=sb_publishable___PNm7MXlZIeRitNp070Rw_JTV2rT2d
 ```
 

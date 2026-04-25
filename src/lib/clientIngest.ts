@@ -20,6 +20,41 @@
 import { supabaseAdmin } from '@/lib/supabase'
 import type { FeedItem } from '@/types'
 
+// ─── Quota guard ─────────────────────────────────────────────────────────────
+// Tracks which APIs hit quota today. Resets at midnight.
+// Prevents hammering APIs that already returned 403/429.
+
+const QUOTA_KEY = 'bm-api-quota'
+
+function getQuotaState(): Record<string, number> {
+  try {
+    const raw = sessionStorage.getItem(QUOTA_KEY)
+    if (!raw) return {}
+    const state = JSON.parse(raw)
+    // Reset if stored on a different date
+    const today = new Date().toDateString()
+    if (state._date !== today) return {}
+    return state
+  } catch { return {} }
+}
+
+function markQuotaExceeded(api: string) {
+  try {
+    const state = getQuotaState()
+    state[api] = Date.now()
+    state._date = new Date().toDateString()
+    sessionStorage.setItem(QUOTA_KEY, JSON.stringify(state))
+    console.warn(`[Quota] ${api} marked as exceeded for today`)
+  } catch {}
+}
+
+function isQuotaExceeded(api: string): boolean {
+  const state = getQuotaState()
+  return !!state[api]
+}
+
+
+
 // ─── Keys ─────────────────────────────────────────────────────────────────────
 const YT_KEY  = import.meta.env.VITE_YOUTUBE_KEY     || ''
 const CSE_KEY = import.meta.env.VITE_GOOGLE_CSE_KEY  || ''
@@ -166,7 +201,10 @@ async function fetchCSETwitter(kw: string, max = 10): Promise<FeedItem[]> {
     url.searchParams.set('num',        String(Math.min(max, 10)))
     url.searchParams.set('dateRestrict', 'w')
     const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) })
-    if (!res.ok) return []
+    if (!res.ok) {
+      if (res.status === 403) markQuotaExceeded('cse')
+      return []
+    }
     const d = await res.json()
     return (d?.items ?? []).map((r: any) => {
       const mHandle = /(?:x|twitter)\.com\/([^/]+)/.exec(r.link)

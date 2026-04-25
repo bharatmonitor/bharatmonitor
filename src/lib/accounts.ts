@@ -3,7 +3,7 @@
 // Hardcoded credentials + Supabase account fetching
 // ============================================================
 
-import { supabase, supabaseAdmin, FUNCTIONS_URL, SERVICE_KEY } from '@/lib/supabase'
+import { supabase, supabaseAdmin, FUNCTIONS_URL, SERVICE_KEY, ANON_KEY } from '@/lib/supabase'
 import { DEMO_ACCOUNT } from '@/lib/mockData'
 import type { Account } from '@/types'
 import type { Tier } from '@/lib/tiers'
@@ -117,9 +117,16 @@ export async function createAccount(data: Partial<Account>): Promise<Account> {
 
 export async function triggerIngest(accountId: string, politicianName: string, keywords: string[]): Promise<void> {
   try {
+    // Use SERVICE_KEY if available, fall back to ANON_KEY
+    // Supabase edge functions require at minimum the anon key as Bearer token
+    const authKey = SERVICE_KEY || ANON_KEY
     const resp = await fetch(`${FUNCTIONS_URL}/bm-ingest-v2`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SERVICE_KEY}` },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authKey}`,
+        'apikey': ANON_KEY,
+      },
       body: JSON.stringify({ account_id: accountId, politician_name: politicianName, keywords }),
       signal: AbortSignal.timeout(30_000),
     })

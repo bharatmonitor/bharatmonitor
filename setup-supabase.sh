@@ -6,7 +6,7 @@
 
 echo "=== BharatMonitor Supabase Setup ==="
 echo "Paste the SQL below into your Supabase SQL Editor at:"
-echo "https://supabase.com/dashboard/project/bmxrsfyaujcppaqvtnfx/sql"
+echo "https://supabase.com/dashboard/project/ylajerluygbeiqybkgtx/sql"
 echo ""
 cat << 'SQL'
 -- BharatMonitor full schema

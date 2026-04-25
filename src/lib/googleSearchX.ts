@@ -127,6 +127,27 @@ export function buildGoogleXSearchUrl(params: {
  * Search X.com via Google Custom Search JSON API.
  * Returns structured tweet-like results with full URLs.
  */
+// Quota guard for GetX CSE (shares 100 queries/day with other CSE usage)
+function getxQuotaOk(): boolean {
+  try {
+    const raw = sessionStorage.getItem('bm-api-quota')
+    if (!raw) return true
+    const state = JSON.parse(raw)
+    const today = new Date().toDateString()
+    if (state._date !== today) return true
+    return !state['getx']
+  } catch { return true }
+}
+function markGetxQuotaExceeded() {
+  try {
+    const raw = sessionStorage.getItem('bm-api-quota')
+    const state = raw ? JSON.parse(raw) : {}
+    state['getx'] = Date.now()
+    state._date = new Date().toDateString()
+    sessionStorage.setItem('bm-api-quota', JSON.stringify(state))
+  } catch {}
+}
+
 export async function searchXViaGoogle(params: {
   query:        string
   orTerms?:     string[]
