@@ -23,7 +23,8 @@ const REQ_TIMEOUT = 25_000
 const cors = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  // 'apikey' header is required by Supabase — must be explicitly allowed
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, x-client-info',
   'Content-Type': 'application/json',
 }
 

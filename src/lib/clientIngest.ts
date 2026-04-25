@@ -17,7 +17,7 @@
 // Google News RSS is ONLY fetched server-side via edge function.
 // ============================================================
 
-import { supabaseAdmin } from '@/lib/supabase'
+import { supabaseAdmin, ANON_KEY, SERVICE_KEY, SUPABASE_URL } from '@/lib/supabase'
 import type { FeedItem } from '@/types'
 
 // ─── Quota guard ─────────────────────────────────────────────────────────────
@@ -202,7 +202,8 @@ async function fetchCSETwitter(kw: string, max = 10): Promise<FeedItem[]> {
     url.searchParams.set('dateRestrict', 'w')
     const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) })
     if (!res.ok) {
-      if (res.status === 403) markQuotaExceeded('cse')
+      if (res.status === 403 || res.status === 429) markQuotaExceeded('cse')
+      console.warn('[CSE] Error', res.status)
       return []
     }
     const d = await res.json()
@@ -223,19 +224,21 @@ async function fetchCSETwitter(kw: string, max = 10): Promise<FeedItem[]> {
 }
 
 // ─── Edge function trigger ────────────────────────────────────────────────────
-const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL || ''
-const SERVICE_KEY   = import.meta.env.VITE_SUPABASE_SERVICE_KEY || ''
+// SUPABASE_URL imported from @/lib/supabase
+// SERVICE_KEY imported from @/lib/supabase
 
 export async function triggerEdgeIngest(
   accountId: string, politicianName: string, keywords: string[]
 ): Promise<{ ok: boolean; inserted: number; error?: string }> {
   if (!SUPABASE_URL) return { ok: false, inserted: 0, error: 'No Supabase URL' }
   try {
+    const authKey = SERVICE_KEY || ANON_KEY
     const res = await fetch(`${SUPABASE_URL}/functions/v1/bm-ingest-v2`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(SERVICE_KEY ? { Authorization: `Bearer ${SERVICE_KEY}` } : {}),
+        'Authorization': `Bearer ${authKey}`,
+        'apikey': ANON_KEY,
       },
       body: JSON.stringify({ accountId, politicianName, keywords, maxPerSource: 20 }),
       signal: AbortSignal.timeout(45000),
