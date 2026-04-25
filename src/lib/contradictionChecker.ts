@@ -222,7 +222,7 @@ Only flag genuine contradictions (score >= 60). If no clear contradiction, set h
       // This requires VITE_ANTHROPIC_KEY which is NOT recommended for prod
       // but acceptable during development/testing
       console.warn('[ContradictionChecker] Edge function unavailable, checking fallback...')
-      return await claudeDirectFallback(prompt)
+      return await geminiDirectFallback(prompt)
     }
 
     const data = await res.json()
@@ -235,35 +235,26 @@ Only flag genuine contradictions (score >= 60). If no clear contradiction, set h
 }
 
 // Fallback: direct client-side call (dev only, not for prod)
-async function claudeDirectFallback(prompt: string): Promise<ClaudeContradictionResponse | null> {
-  // Check if there's a direct key available (should only be in dev .env.local)
-  const directKey = import.meta.env.VITE_ANTHROPIC_KEY_DEV || ''
-  if (!directKey) return null
-
+async function geminiDirectFallback(prompt: string): Promise<ClaudeContradictionResponse | null> {
+  const geminiKey = import.meta.env.VITE_GEMINI_KEY || ''
+  if (!geminiKey) return null
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': directKey,
-        'anthropic-version': '2023-06-01',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 600,
-        messages: [{ role: 'user', content: prompt }],
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 600 },
       }),
       signal: AbortSignal.timeout(20000),
     })
     if (!res.ok) return null
     const data = await res.json()
-    const text = data?.content?.[0]?.text || ''
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return null
     return JSON.parse(jsonMatch[0])
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
 // ─── Step 5: Save contradiction to Supabase ───────────────────────────────────
