@@ -80,7 +80,24 @@ export async function fetchAllAccounts(): Promise<Account[]> {
 export async function updateAccount(userId: string, accountId: string, patch: Partial<Account>): Promise<void> {
   const isDemoAccount = Object.keys(DEMO_ACCOUNT_MAP).includes(accountId)
   if (isDemoAccount) { saveDemoEdit(accountId, { ...patch, updated_at: new Date().toISOString() }); return }
-  const { error } = await supabaseAdmin.from('accounts').update({ ...patch, updated_at: new Date().toISOString() }).eq('user_id', userId)
+
+  // Sanitize: only send columns that exist in the DB schema
+  const KNOWN_COLUMNS = [
+    'id','user_id','created_by','is_active','politician_name','politician_initials',
+    'party','designation','constituency','constituency_type','state','district',
+    'keywords','tracked_politicians','tracked_ministries','tracked_parties',
+    'tracked_schemes','languages','geo_scope','alert_prefs',
+    'contact_email','contact_phone','email','account_type',
+    'created_at','updated_at',
+  ]
+  const safe: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  for (const key of KNOWN_COLUMNS) {
+    if (key in patch && (patch as any)[key] !== undefined) {
+      safe[key] = (patch as any)[key]
+    }
+  }
+
+  const { error } = await supabaseAdmin.from('accounts').update(safe).eq('id', accountId)
   if (error) throw new Error(error.message)
 }
 
