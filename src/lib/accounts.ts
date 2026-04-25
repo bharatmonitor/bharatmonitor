@@ -85,12 +85,32 @@ export async function updateAccount(userId: string, accountId: string, patch: Pa
 }
 
 export async function createAccount(data: Partial<Account>): Promise<Account> {
-  const { error, data: created } = await supabaseAdmin.from('accounts').insert({
-    ...data,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    is_active: true,
-  }).select().single()
+  // Sanitize: only send columns that exist in the DB schema
+  // Prevents "Invalid path specified" errors from unknown fields
+  const KNOWN_COLUMNS = [
+    'id','user_id','created_by','is_active','politician_name','politician_initials',
+    'party','designation','constituency','constituency_type','state','district',
+    'keywords','tracked_politicians','tracked_ministries','tracked_parties',
+    'tracked_schemes','languages','geo_scope','alert_prefs',
+    'contact_email','contact_phone','email','account_type',
+    'created_at','updated_at',
+  ]
+  const safe: Record<string, unknown> = {}
+  for (const key of KNOWN_COLUMNS) {
+    if (key in data && (data as any)[key] !== undefined) {
+      safe[key] = (data as any)[key]
+    }
+  }
+  // Generate a stable id if not provided
+  if (!safe.id) {
+    safe.id = `acct-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  }
+  safe.created_at = new Date().toISOString()
+  safe.updated_at = new Date().toISOString()
+  safe.is_active = true
+
+  const { error, data: created } = await supabaseAdmin
+    .from('accounts').insert(safe).select().single()
   if (error) throw new Error(error.message)
   return created as Account
 }
