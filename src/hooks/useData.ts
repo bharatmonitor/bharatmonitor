@@ -30,6 +30,9 @@ export function useFeedItems(accountId: string) {
         supabase.from('feed_items').select('*').eq('account_id', accountId)
           .order('published_at', { ascending: false }).limit(100),
       ])
+      if (r1.error) console.error('[useFeedItems] bm_feed error:', r1.error.message, r1.error.code)
+      if (r2.error) console.error('[useFeedItems] feed_items error:', r2.error.message, r2.error.code)
+      console.log(`[useFeedItems] bm_feed: ${r1.data?.length ?? 0} rows, feed_items: ${r2.data?.length ?? 0} rows for account_id=${accountId}`)
       const now = new Date().toISOString()
       const bm: FeedItem[] = (r1.data || []).map((i: any) => ({
         id: i.id, account_id: i.account_id,
@@ -41,7 +44,7 @@ export function useFeedItems(accountId: string) {
         bucket: (i.bucket || tone2bucket(i.tone)) as any,
         platform: (i.source_type || i.platform || 'news') as any,
         url: i.url || '',
-        sentiment: tone2sent(i.tone) as any,
+        sentiment: (i.sentiment || tone2sent(i.tone)) as any,
         tone: i.tone || 0,
         keyword: i.keyword || '',
         geo_tags: i.geo_tags || [],
