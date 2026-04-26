@@ -81,6 +81,16 @@ export async function updateAccount(userId: string, accountId: string, patch: Pa
   const isDemoAccount = Object.keys(DEMO_ACCOUNT_MAP).includes(accountId)
   if (isDemoAccount) { saveDemoEdit(accountId, { ...patch, updated_at: new Date().toISOString() }); return }
 
+  // Handle password update via Supabase Auth (separate from profile update)
+  const patchAny = patch as any
+  if (patchAny._newPassword && patchAny._newPassword.length >= 8) {
+    try {
+      const { error } = await supabase.auth.updateUser({ password: patchAny._newPassword })
+      if (error) console.warn('[updateAccount] Password update error:', error.message)
+      else console.log('[updateAccount] Password updated successfully')
+    } catch (e) { console.warn('[updateAccount] Password update exception:', e) }
+  }
+
   // Sanitize: only send columns that exist in the DB schema
   const KNOWN_COLUMNS = [
     'id','user_id','created_by','is_active','politician_name','politician_initials',
@@ -120,7 +130,11 @@ export async function createAccount(data: Partial<Account>): Promise<Account> {
   }
   // Generate a stable id if not provided
   if (!safe.id) {
-    safe.id = `acct-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    // Format: BM-YYYY-XXXXXX (e.g. BM-2026-K4F7M2) — unique alphanumeric
+    const year  = new Date().getFullYear()
+    const ts    = Date.now().toString(36).toUpperCase().slice(-4) // last 4 chars of timestamp
+    const rand  = Math.random().toString(36).toUpperCase().slice(2, 6) // 4 random chars
+    safe.id = `BM-${year}-${ts}${rand}`
   }
   safe.created_at = new Date().toISOString()
   safe.updated_at = new Date().toISOString()

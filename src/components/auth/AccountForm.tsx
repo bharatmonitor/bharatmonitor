@@ -30,6 +30,8 @@ const STEP_LABELS = { profile: 'Politician Profile', tracking: 'What to Track', 
 export default function AccountForm({ account, onClose, onSave }: Props) {
   const [step, setStep] = useState<Step>('profile')
   const [saving, setSaving] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
   const [form, setForm] = useState<Partial<Account>>({
     politician_name: account?.politician_name || '',
@@ -84,9 +86,11 @@ export default function AccountForm({ account, onClose, onSave }: Props) {
   }
 
   async function handleSave() {
+    if (newPassword && newPassword.length < 8) { alert('Password must be at least 8 characters'); return }
+    if (newPassword && newPassword !== confirmPassword) { alert('Passwords do not match'); return }
     setSaving(true)
     await new Promise(r => setTimeout(r, 800))
-    onSave(form)
+    onSave(form, newPassword || undefined)
     setSaving(false)
   }
 

@@ -2,6 +2,14 @@ import { useDashboardStore } from '@/store'
 import type { FeedItem } from '@/types'
 import { formatDistanceToNow } from 'date-fns'
 
+function decodeHtml(html: string): string {
+  const txt = document.createElement('textarea')
+  txt.innerHTML = html
+  return txt.value
+}
+
+
+
 const PLAT_COLOR: Record<string, string> = {
   twitter: '#1d9bf0', instagram: '#e1306c', facebook: '#1877f2',
   whatsapp: '#25d366', youtube: '#ff2020', news: '#8892a4', reddit: '#ff4500',
@@ -68,7 +76,7 @@ export default function FeedCard({ item }: Props) {
             <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: 'rgba(220,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '6px', color: '#fff' }}>▶</div>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '11px', color: 'var(--t0)', fontWeight: 400, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.headline}</div>
+            <div style={{ fontSize: '11px', color: 'var(--t0)', fontWeight: 400, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{decodeHtml(item.headline || "")}</div>
             {item.channel && <div style={{ fontSize: '8px', color: 'var(--t2)', marginTop: '2px', fontFamily: 'IBM Plex Mono, monospace' }}>{item.channel}{item.views ? ` · ${(item.views / 1000).toFixed(0)}K views` : ''}</div>}
           </div>
         </div>
@@ -76,7 +84,7 @@ export default function FeedCard({ item }: Props) {
 
       {/* Headline */}
       {!isYT && (
-        <div style={{ fontSize: '11px', color: 'var(--t0)', lineHeight: 1.5, marginBottom: '4px' }}>{item.headline}</div>
+        <div style={{ fontSize: '11px', color: 'var(--t0)', lineHeight: 1.5, marginBottom: '4px' }}>{decodeHtml(item.headline || "")}</div>
       )}
 
       {/* Contradiction block */}

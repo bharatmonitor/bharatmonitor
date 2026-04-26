@@ -478,9 +478,9 @@ export default function DataTablePage() {
 
       <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
 
-        {/* ── Universal search (Nitter syntax) ───────────────────────────── */}
+        {/* ── Universal search (advanced search syntax) ───────────────────────────── */}
         <div style={{ background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: '10px', padding: '14px 16px', marginBottom: '12px' }}>
-          <div style={{ fontFamily: mono, fontSize: '8px', color: 'var(--acc)', letterSpacing: '1px', marginBottom: '8px' }}>◈ UNIVERSAL SEARCH — NITTER SYNTAX</div>
+          <div style={{ fontFamily: mono, fontSize: '8px', color: 'var(--acc)', letterSpacing: '1px', marginBottom: '8px' }}>◈ UNIVERSAL SEARCH</div>
           <input
             value={rawSearch}
             onChange={e => { setRawSearch(e.target.value); setPage(1) }}
@@ -520,7 +520,7 @@ export default function DataTablePage() {
                 transition: 'all .15s',
               }}>
               <span style={{ fontSize: '11px' }}>𝕏</span>
-              LIVE X.COM VIA GOOGLE {showGoogleX ? '▲ ON' : '▽ OFF'}
+              X / TWITTER SEARCH {showGoogleX ? '▲ ON' : '▽ OFF'}
             </button>
             {debouncedQuery.length > 2 && (
               <a

@@ -13,6 +13,14 @@ const TAG_COLORS: Record<string, { bg: string; color: string; border: string }> 
   AI:       { bg: 'rgba(249,115,22,0.12)',  color: '#f97316', border: 'rgba(249,115,22,0.25)' },
 }
 
+function decodeHtml(html: string): string {
+  try {
+    const txt = document.createElement('textarea')
+    txt.innerHTML = html
+    return txt.value
+  } catch { return html }
+}
+
 export function AIRibbon({ brief }: { brief: AIBrief }) {
   const [countdown, setCountdown] = useState(60)
   useEffect(() => {
@@ -45,7 +53,7 @@ export function AIRibbon({ brief }: { brief: AIBrief }) {
             return (
               <span key={`${item.id}-${i}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '0 20px', fontSize: '10px', color: 'var(--t1)', borderRight: '1px solid var(--b0)', flexShrink: 0 }}>
                 <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '7px', padding: '1px 4px', borderRadius: '2px', background: tc.bg, color: tc.color, border: `1px solid ${tc.border}`, flexShrink: 0 }}>{item.tag}</span>
-                {item.text}
+                {decodeHtml(item.text || "")}
               </span>
             )
           })}
@@ -73,7 +81,7 @@ export function BucketNav() {
     { id: 'red',    label: 'CRISIS',      color: '#f03e3e', bg: 'rgba(240,62,62,0.08)',    border: 'rgba(240,62,62,0.28)',    live: true },
     { id: 'yellow', label: 'DEVELOPING',  color: '#f5a623', bg: 'rgba(245,166,35,0.08)',   border: 'rgba(245,166,35,0.28)'   },
     { id: 'blue',   label: 'BACKGROUND',  color: '#3d8ef0', bg: 'rgba(61,142,240,0.08)',   border: 'rgba(61,142,240,0.28)'   },
-    { id: 'silver', label: 'QUOTE INTEL', color: '#8892a4', bg: 'rgba(136,146,164,0.08)',  border: 'rgba(136,146,164,0.28)'  },
+    { id: 'silver', label: 'QUOTE INTEL', color: '#f5a623', bg: 'rgba(245,166,35,0.08)',   border: 'rgba(245,166,35,0.28)'   },
   ]
 
   return (

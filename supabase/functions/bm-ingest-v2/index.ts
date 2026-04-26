@@ -9,6 +9,21 @@ const XPOZ_KEY      = Deno.env.get('XPOZ_API_KEY') ?? ''
 
 const db = createClient(SUPABASE_URL, SUPABASE_KEY)
 
+function decodeHtmlEntities(text) {
+  if (!text) return ''
+  return text
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)))
+    .trim()
+}
+
+
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -143,8 +158,8 @@ Deno.serve(async (req) => {
       const id   = item.id || `ingest-${Date.now()}-${Math.random().toString(36).slice(2,8)}`
       rows.push({
         id, account_id: accountId,
-        headline:    (item.title||'').slice(0,220),
-        title:       (item.title||'').slice(0,220),
+        headline:    decodeHtmlEntities((item.title||'')).slice(0,220),
+        title:       decodeHtmlEntities((item.title||'')).slice(0,220),
         body:        (item.body||item.title||'').slice(0,1000),
         source:      item.source || 'Web',
         source_name: item.source || 'Web',
@@ -176,3 +191,23 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: false, error: e.message }), { status: 500, headers: CORS })
   }
 })
+
+// ─── Competitor Quote Scraping ────────────────────────────────────────────────
+// Called separately by bm-contradiction-check after main ingest
+// Fetches recent quotes from tracked competitor politicians via NewsData.io
+
+async function fetchCompetitorQuotes(competitorNames, apiKey) {
+  if (!apiKey || !competitorNames?.length) return []
+  const results = []
+  for (const name of competitorNames.slice(0, 5)) {
+    try {
+      const r = await fetch(`https://newsdata.io/api/1/news?apikey=${apiKey}&q=${encodeURIComponent('"' + name + '"')}&country=in&language=en&category=politics`, { signal: AbortSignal.timeout(10000) })
+      if (!r.ok) continue
+      const d = await r.json()
+      for (const a of (d.results ?? []).slice(0, 5)) {
+        results.push({ name, title: a.title, description: a.description, link: a.link, pubDate: a.pubDate, source: a.source_id })
+      }
+    } catch { continue }
+  }
+  return results
+}

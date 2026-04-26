@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store'
 import {
@@ -42,6 +43,7 @@ export default function DashboardPage() {
   const activeVideo  = useDashboardStore(selectActiveVideo)
   const closeVideo   = useDashboardStore(selectCloseVideo)
   const setAllCounts = useFeedCountStore(selectSetAllCounts)
+  const qc = useQueryClient()
 
   const { data: account, isLoading: accountLoading, error: accountError } = useAccount()
   const accountId = account?.id ?? ''
@@ -72,10 +74,17 @@ export default function DashboardPage() {
   const { data: schemes = [] }        = useSchemes(accountId, account)
   const { data: issueOwnership = [] } = useIssueOwnership(accountId)
 
+  // All tracked politicians (for feed display + FeedDetailPanel)
   const trackedPoliticianNames = useMemo(() =>
     (account?.tracked_politicians ?? []).map(p => p.name), [account?.tracked_politicians])
 
-  const contradictionChecker = useContradictionChecker(accountId, feed, trackedPoliticianNames)
+  // COMPETITORS ONLY — for Quote Intel contradiction checking
+  const competitorNames = useMemo(() =>
+    (account?.tracked_politicians ?? [])
+      .filter(p => p.is_competitor)
+      .map(p => p.name), [account?.tracked_politicians])
+
+  const contradictionChecker = useContradictionChecker(accountId, feed, competitorNames.length > 0 ? competitorNames : trackedPoliticianNames)
   const [contradictionRan, setContradictionRan] = useState(false)
 
   const updateAccountMutation = useUpdateAccount()
@@ -86,7 +95,8 @@ export default function DashboardPage() {
   useEffect(() => {
     const counts = { red: 0, yellow: 0, blue: 0, silver: 0 }
     feed.forEach(f => { if (f.bucket in counts) counts[f.bucket as keyof typeof counts]++ })
-    setAllCounts(counts)
+    // blue count includes silver (merged into BACKGROUND column)
+    setAllCounts({ ...counts, blue: counts.blue + counts.silver, silver: 0 })
   }, [feed, setAllCounts])
 
   // ── PRIMARY INGEST: fires once per session as soon as account loads ──────
@@ -112,7 +122,7 @@ export default function DashboardPage() {
         if (result.inserted > 0) {
           toast.success(`⚡ ${result.inserted} items ingested`, { duration: 3000 })
           // Invalidate feed queries so useFeedItems refetches
-          clientIngestMutation.client?.invalidateQueries?.({ queryKey: ['feed', accountId] })
+          qc.invalidateQueries({ queryKey: ['feed', accountId] })
         } else if (!result.ok) {
           console.warn('[Dashboard] Edge fn failed:', result.error)
         }
@@ -174,10 +184,15 @@ export default function DashboardPage() {
 
   const tickerBrief = useMemo(() => {
     if (brief && (brief.ticker_items?.length || 0) > 0) return brief
-    const top = feed.slice(0, 8).map((f, i) => ({
+    // Ticker prioritises: RED (crisis) first, then YELLOW (developing), then rest
+    const crisis    = feed.filter(f => f.bucket === 'red').slice(0, 3)
+    const developing = feed.filter(f => f.bucket === 'yellow').slice(0, 3)
+    const rest      = feed.filter(f => f.bucket !== 'red' && f.bucket !== 'yellow').slice(0, 3)
+    const ordered   = [...crisis, ...developing, ...rest].slice(0, 10)
+    const top = ordered.map((f, i) => ({
       id: f.id || `tk-${i}`,
-      tag: (f.bucket === 'red' ? 'CRISIS' : f.bucket === 'yellow' ? 'OPP' : f.sentiment === 'positive' ? 'POSITIVE' : 'INTEL') as any,
-      text: `${(f.source || 'Feed').toUpperCase()} — ${(f.headline || '').slice(0, 120)}`,
+      tag: (f.bucket === 'red' ? 'CRISIS' : f.bucket === 'yellow' ? 'DEVELOPING' : f.sentiment === 'positive' ? 'POSITIVE' : 'INTEL') as any,
+      text: `${(f.source || 'Feed').toUpperCase()} — ${(f.headline || '').slice(0, 130)}`,
     }))
     if (top.length === 0) {
       return {
@@ -259,7 +274,7 @@ export default function DashboardPage() {
                 FETCHING INTELLIGENCE…
               </div>
             ) : (
-              <BucketColumns feed={feed} />
+              <BucketColumns feed={feed} accountId={accountId} />
             )}
           </div>
           <Sidebar pulse={safePulse} competitors={competitors} schemes={schemes} issueOwnership={issueOwnership} account={account!} brief={brief} feed={feed} />

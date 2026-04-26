@@ -64,7 +64,7 @@ export default function QuickScan() {
 
     const phases = [
       'Querying Google News RSS…',
-      'Scanning Twitter/X via XPOZ + GetX…',
+      'Scanning Twitter/X in real-time…',
       'Fetching YouTube data…',
       'Scanning Reddit India…',
       'Running sentiment analysis…',
@@ -214,7 +214,7 @@ export default function QuickScan() {
               <div style={{ width: '28px', height: '28px', borderRadius: '7px', background: 'rgba(124,109,250,0.15)', border: '1px solid rgba(124,109,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>⚡</div>
               <div>
                 <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: '#edf0f8', letterSpacing: '1px' }}>QUICK SCAN</div>
-                <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '7px', color: 'var(--t2)', letterSpacing: '1px', marginTop: '1px' }}>LIVE · XPOZ + GETX + GOOGLE NEWS + REDDIT</div>
+                <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '7px', color: 'var(--t2)', letterSpacing: '1px', marginTop: '1px' }}>LIVE · X/TWITTER · GOOGLE NEWS · YOUTUBE · REDDIT</div>
               </div>
               <button onClick={() => setIsOpen(false)} style={{ marginLeft: 'auto', background: 'var(--s3)', border: '1px solid var(--b1)', color: 'var(--t2)', width: '24px', height: '24px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
             </div>
