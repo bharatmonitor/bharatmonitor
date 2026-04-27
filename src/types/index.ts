@@ -138,7 +138,7 @@ export interface Contradiction {
   historical_date: string
   historical_source: string
   contradiction_score: number   // 0–100
-  contradiction_type: 'flip' | 'contradiction' | 'vote_record' | 'data_gap'
+  contradiction_type: 'flip' | 'contradiction' | 'vote_record' | 'data_gap' | 'sarcasm'
   evidence_source?: string      // e.g. "RTI", "Lok Sabha record"
   status: 'flagged' | 'confirmed' | 'dismissed'
   reasoning?: string            // AI explanation of the contradiction

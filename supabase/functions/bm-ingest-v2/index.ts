@@ -16,10 +16,10 @@ const CORS = {
   'Content-Type': 'application/json',
 }
 
-const POS    = ['launched','inaugurated','achieved','success','milestone','growth','development','welfare','award','praised','progress','victory','wins','announced']
-const NEG    = ['scam','scandal','corruption','fraud','arrest','protest','attack','exposed','resign','fake','crisis','blast','terror','controversy','accused','violence']
-const CRISIS = ['riot','flood','earthquake','bomb','blast','terror','dead','killed','murder','fire','emergency','explosion','stampede']
-const OPP    = ['congress','aap','rahul','kejriwal','owaisi','mamata','opposition']
+const POS    = ['launched','inaugurated','achieved','success','milestone','growth','development','welfare','award','praised','progress','victory','wins','announced','backs','supports','endorses','applauds','commends','welcomes','approves','celebrates','delivers','records high','new high','beneficiaries','scheme','inaugurates','distributes','opens','dedicates','completes','record','billion','crore','scheme','relief','aid','help','empowers','transforms','revolution','historic','landmark']
+const NEG    = ['scam','scandal','corruption','fraud','arrest','protest','attack','exposed','resign','fake','crisis','blast','terror','controversy','accused','violence','clash','row','heats up','opposes','criticises','criticizes','rejects','slams','blasts','targets','demands','questions','stalls','blocks','defeated','failed','failure','lost','loss','backlash','outrage','anger','agitation','rally against','march against','shutdown','bandh','hartal','strike','allegation','alleged','charge','complaint','FIR','case','probe','ED','CBI','IT raid']
+const CRISIS = ['riot','flood','earthquake','bomb','blast','terror','dead','killed','murder','fire','emergency','explosion','stampede','massacre','attack','gunfire','tragedy','disaster','deaths','fatalities','collapse','accident','crash']
+const OPP    = ['congress','aap','rahul','kejriwal','owaisi','mamata','opposition','indi alliance','INDIA bloc','TMC','SP','BSP','RJD','JDU','NCP','shiv sena','arvind','priyanka','sonia']
 const GEO    = ['Delhi','Mumbai','Chennai','Kolkata','Hyderabad','Bengaluru','Ahmedabad','Pune','Jaipur','Lucknow','Patna','UP','Bihar','Rajasthan','Maharashtra','Gujarat','Karnataka','India','Tamil Nadu','Kerala','West Bengal','Varanasi','Chhattisgarh','Madhya Pradesh','Odisha','Assam','Punjab','Haryana']
 
 function kwScore(text) {

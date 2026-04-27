@@ -55,6 +55,16 @@ function extractQuoteSignals(item: FeedItem): string[] {
   const text = `${item.headline} ${item.body || ''}`
   const signals: string[] = []
 
+  // Sarcasm detection — phrases that sound positive but are critical
+  const sarcasmPatterns = [
+    /(?:surely|definitely|certainly|obviously|of course).*(?:will|shall|would|can).*(?:fix|solve|address|tackle)/gi,
+    /(?:promises|vows|pledges).*(?:again|yet again|once more|as usual)/gi,
+    /(?:another|yet another).*(?:promise|announcement|scheme|plan)/gi,
+  ]
+  for (const rx of sarcasmPatterns) {
+    const m = rx.exec(text)
+    if (m) signals.push(m[0])
+  }
   // Direct quote patterns
   const quotePatterns = [
     /["""]([^"""]{20,250})["""]/g,          // curly/straight quotes
@@ -113,8 +123,8 @@ async function fetchHistoricalStatements(
   if (!CSE_KEY || !CSE_CX) return []
 
   // Search for historical statements — exclude recent 90 days to find old positions
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-  const until = ninetyDaysAgo.toISOString().substring(0, 10).replace(/-/g, '/')
+  const ninetyDaysAgo = new Date('2014-05-26')  // Start from when Modi govt took office
+  const until = new Date().toISOString().substring(0, 10).replace(/-/g, '/')  // Until today
 
   const q = `"${politicianName}" ${topic} site:ndtv.com OR site:thehindu.com OR site:hindustantimes.com OR site:timesofindia.com OR site:indianexpress.com OR site:pib.gov.in OR site:sansad.in OR site:loksabha.nic.in`
 
@@ -124,7 +134,7 @@ async function fetchHistoricalStatements(
     url.searchParams.set('cx', CSE_CX)
     url.searchParams.set('q', q)
     url.searchParams.set('num', String(Math.min(maxResults, 10)))
-    url.searchParams.set('tbs', `cdr:1,cd_max:${until}`)
+    url.searchParams.set('tbs', `cdr:1,cd_min:2014/01/01,cd_max:${until}`)
     url.searchParams.set('gl', 'in')
 
     const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) })
@@ -181,7 +191,7 @@ CURRENT STATEMENT (recent, from news/social media):
 HISTORICAL STATEMENTS/RECORDS (from the past 5 years):
 ${historicalContext}
 
-Task: Check if the current statement CONTRADICTS or FLIPS a previous position.
+Task: Check if the current statement CONTRADICTS or FLIPS a previous position from 2014 to present. Also detect SARCASM — if the statement uses ironic praise or backhanded compliments.
 
 Types:
 - "flip": Clear reversal of stated position (e.g., promised X, now says Y)
@@ -189,6 +199,7 @@ Types:
 - "vote_record": Current claim contradicts their voting/policy record
 - "data_gap": Claim contradicts verifiable data (economic, development stats)
 - "none": No meaningful contradiction found
+- "sarcasm": Statement is ironic/sarcastic criticism disguised as praise
 
 Return ONLY valid JSON (no markdown):
 {
