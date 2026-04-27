@@ -259,14 +259,14 @@ export default function DashboardPage() {
 
   return (
     <ErrorBoundary>
-      <div style={{ minHeight:'100vh', background:'var(--bg)', display:'flex', flexDirection:'column' }}>
+      <div style={{ height:'100vh', background:'var(--bg)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
         <CommandBar account={account!} kpis={kpis} onSearchClick={() => setShowSearch(true)} onSettingsClick={() => setShowSettings(true)} onAnalyticsClick={() => setShowAnalytics(true)} />
         <AIRibbon brief={tickerBrief} />
         <BucketNav />
         <PlatformFilter />
         {trends.length > 0 && <TrendStrip trends={trends} />}
 
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 220px', flex:1, overflow:'hidden', minHeight:0, maxHeight:'calc(100vh - 154px)' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 220px', flex:1, overflow:'hidden', minHeight:0 }}>
           <div style={{ overflow:'hidden', display:'flex', flexDirection:'column', minHeight:0 }}>
             {feedLoading && feed.length === 0 ? (
               <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--t3)', fontFamily:'IBM Plex Mono, monospace', fontSize:'9px', flexDirection:'column', gap:'8px' }}>

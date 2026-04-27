@@ -422,7 +422,7 @@ interface Props {
 export default function Sidebar({ pulse, competitors, schemes, account, brief, feed }: Props) {
   const { geoScope, setGeoScope } = useDashboardStore()
   return (
-    <div style={{ background:'var(--s1)', display:'flex', flexDirection:'column', overflowY:'auto', scrollbarWidth:'thin', scrollbarColor:'rgba(255,255,255,0.1) transparent' }}>
+    <div style={{ background:'var(--s1)', display:'flex', flexDirection:'column', overflowY:'auto', scrollbarWidth:'thin', scrollbarColor:'rgba(255,255,255,0.1) transparent', minHeight:0 }}>
       <div style={{ padding:'7px 12px', borderBottom:'1px solid var(--b0)', display:'flex', gap:'4px', flexShrink:0 }}>
         {(['national','state','constituency'] as const).map(g=>(
           <button key={g} onClick={()=>setGeoScope(g)} style={{ flex:1, padding:'4px', border:`1px solid ${geoScope===g?'rgba(249,115,22,0.4)':'var(--b1)'}`, borderRadius:'4px', background:geoScope===g?'rgba(249,115,22,0.1)':'transparent', color:geoScope===g?'var(--acc)':'var(--t2)', fontFamily:'IBM Plex Mono, monospace', fontSize:'7px', cursor:'pointer', textTransform:'uppercase' }}>

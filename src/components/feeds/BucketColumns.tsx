@@ -29,7 +29,7 @@ function QuoteIntelColumn({ accountId }: { accountId: string }) {
     }}>
       {/* Header */}
       <div style={{
-        position: 'sticky', top: '154px', zIndex: 10,
+        position: 'sticky', top: 0, zIndex: 10,
         background: 'rgba(245,166,35,0.06)',
         borderBottom: '1px solid rgba(245,166,35,0.2)',
         borderTop: '2px solid rgba(245,166,35,0.4)',
@@ -171,7 +171,7 @@ function BucketColumn({ bucket, items }: { bucket: BucketColor; items: FeedItem[
   return (
     <div id={`bcol-${bucket}`} style={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, flex: 1 }}>
       <div style={{
-        position: 'sticky', top: '154px', zIndex: 10,
+        position: 'sticky', top: 0, zIndex: 10,
         background: cfg.bg,
         borderBottom: `1px solid ${cfg.border}`,
         borderTop: `2px solid ${cfg.color}`,
