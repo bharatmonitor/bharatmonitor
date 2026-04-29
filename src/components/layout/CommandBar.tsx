@@ -16,6 +16,7 @@ export interface KpiData {
 
 interface Props {
   account: Account
+  onRefreshClick?: () => void
   kpis?: KpiData
   onSearchClick?: () => void
   onSettingsClick?: () => void

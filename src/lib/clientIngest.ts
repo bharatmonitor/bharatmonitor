@@ -20,6 +20,28 @@
 import { supabaseAdmin, ANON_KEY, SERVICE_KEY, SUPABASE_URL } from '@/lib/supabase'
 import type { FeedItem } from '@/types'
 
+// ─── YouTube quota guard ──────────────────────────────────────────────────────
+// YouTube Data API: 10,000 units/day FREE. Each search = 100 units = 100 max/day.
+// With 7 keywords × multiple hooks refetching = quota gone in minutes.
+// FIX: One combined search per 6-hour window, cached in sessionStorage.
+const YT_CACHE_KEY = 'bm-yt-cache-v1'
+const YT_CACHE_TTL = 6 * 60 * 60 * 1000 // 6 hours
+
+function getYTCache(): { items: any[]; ts: number } | null {
+  try {
+    const raw = sessionStorage.getItem(YT_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (Date.now() - parsed.ts > YT_CACHE_TTL) { sessionStorage.removeItem(YT_CACHE_KEY); return null }
+    return parsed
+  } catch { return null }
+}
+function setYTCache(items: any[]) {
+  try { sessionStorage.setItem(YT_CACHE_KEY, JSON.stringify({ items, ts: Date.now() })) } catch {}
+}
+
+
+
 // ─── Quota guard ─────────────────────────────────────────────────────────────
 // Tracks which APIs hit quota today. Resets at midnight.
 // Prevents hammering APIs that already returned 403/429.

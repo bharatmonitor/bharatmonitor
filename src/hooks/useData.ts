@@ -290,12 +290,18 @@ export function useUpdateAccount() {
   return useMutation({
     mutationFn: async (patch: Partial<Account>) => {
       if (!user?.id) throw new Error('Not logged in')
-      // Get the current account to find its id
       const account = qc.getQueryData<Account>(['account', user.id])
       const accountId = account?.id || user.id
       await updateAccount(user.id, accountId, patch)
+      // Return the merged account for optimistic cache update
+      return { ...account, ...patch, updated_at: new Date().toISOString() }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['account', user?.id] }),
+    onSuccess: (updated) => {
+      // Immediately update cache so keywords show without waiting for refetch
+      if (updated) qc.setQueryData(['account', user?.id], updated)
+      // Then also invalidate to get fresh DB data
+      qc.invalidateQueries({ queryKey: ['account', user?.id] })
+    },
   })
 }
 

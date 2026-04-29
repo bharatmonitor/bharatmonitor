@@ -120,14 +120,24 @@ export default function DashboardPage() {
     triggerEdgeIngest(accountId, acc.politician_name, acc.keywords)
       .then(result => {
         if (result.inserted > 0) {
-          toast.success(`⚡ ${result.inserted} items ingested`, { duration: 3000 })
-          // Invalidate feed queries so useFeedItems refetches
+          toast.success(`⚡ ${result.inserted} items ingested`, {
+            duration: 3000,
+            style: { background:'#0d1018', border:'1px solid rgba(34,211,160,0.4)', color:'#22d3a0', fontFamily:'IBM Plex Mono, monospace', fontSize:'11px' }
+          })
           qc.invalidateQueries({ queryKey: ['feed', accountId] })
+          qc.invalidateQueries({ queryKey: ['brief', accountId] })
         } else if (!result.ok) {
           console.warn('[Dashboard] Edge fn failed:', result.error)
+          toast.error(`Ingest failed: ${result.error?.slice(0,60)}`, { duration: 5000 })
+        } else {
+          console.warn('[Dashboard] Edge fn returned 0 items - check Supabase function logs')
+          toast(`⚠ Ingest returned 0 items. Check edge function logs.`, { duration: 5000, style: { background:'#0d1018', border:'1px solid rgba(245,166,35,0.4)', color:'#f5a623', fontFamily:'IBM Plex Mono, monospace', fontSize:'11px' } })
         }
       })
-      .catch(e => console.warn('[Dashboard] Edge fn exception:', e))
+      .catch(e => {
+        console.warn('[Dashboard] Edge fn exception:', e)
+        toast.error(`Edge fn error: ${e.message}`, { duration: 4000 })
+      })
 
     // In parallel: fetch browser-safe APIs immediately
     if (!browserFetched) {
@@ -222,6 +232,15 @@ export default function DashboardPage() {
     const negPct       = total ? Math.round((neg / total) * 100) : 0
     return { total, pos, neg, crisis, opp, sentimentPct, negPct }
   }, [feed])
+
+  function handleRefresh() {
+    if (!accountId || !account?.keywords?.length) return
+    setIngestDone(false)  // Reset flag so ingest fires again
+    setBrowserFetched(false)
+    setBrowserFeed([])
+    qc.invalidateQueries({ queryKey: ['feed', accountId] })
+    toast('↻ Refreshing data...', { duration: 2000, style: { background: 'var(--s2)', border: '1px solid rgba(34,211,160,0.3)', color: '#22d3a0', fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px' } })
+  }
 
   async function handleSaveAccount(patch: Partial<Account>) {
     if (!account || !user) return

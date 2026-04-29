@@ -21,7 +21,7 @@ export interface HardcodedCred {
 
 export const HARDCODED_CREDS: HardcodedCred[] = [
   { id: '9999999999999999', email: 'god@bharatmonitor.in', password: 'BM@God2024!', role: 'god', tier: 'god', account_id: 'god-account', name: 'God Mode' },
-  { id: 'demo-001', email: 'modi@bharatmonitor.in', password: 'Demo@Modi2024', role: 'user', tier: 'elections', account_id: 'demo-001', name: 'Narendra Modi (Demo)' },
+  { id: 'demo-001', email: 'modi@bharatmonitor.in', password: 'Demo@Modi2024', role: 'user', tier: 'elections', account_id: 'demo-001', name: 'Narendra Modi (Demo)', username: 'modi_demo' },
 ]
 
 const DEMO_ACCOUNT_MAP: Record<string, Account> = {
@@ -52,7 +52,10 @@ export async function fetchAccount(userId: string): Promise<Account | null> {
   const cred = HARDCODED_CREDS.find(c => c.id === userId)
   if (cred) {
     if (userId === '9999999999999999') {
-      return { id: 'god-account', user_id: userId, created_by: userId, is_active: true, politician_name: 'God Mode', politician_initials: 'GM', party: '', designation: 'Platform Administrator', constituency: '', constituency_type: 'national', state: '', district: '', keywords: ['India politics', 'BJP', 'Congress', 'PM Modi', 'Rahul Gandhi', 'Indian elections', 'Parliament India'], tracked_politicians: [{ id: 'tp1', name: 'Narendra Modi', party: 'BJP', initials: 'NM', role: 'Prime Minister', is_competitor: false }, { id: 'tp2', name: 'Rahul Gandhi', party: 'INC', initials: 'RG', role: 'Leader of Opposition', is_competitor: false }], tracked_ministries: ['Finance', 'Home Affairs', 'Defence', 'External Affairs'], tracked_parties: ['BJP', 'INC', 'AAP', 'TMC', 'SP'], tracked_schemes: ['PM Awas Yojana', 'Ayushman Bharat', 'Digital India'], languages: ['english', 'hindi'], geo_scope: [{ level: 'national', name: 'India' }], alert_prefs: { red_sms: false, red_push: false, red_email: false, yellow_push: false, yellow_email: false }, contact_email: 'god@bharatmonitor.in', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+      const godBase: Account = { id: 'god-account', user_id: userId, created_by: userId, is_active: true, politician_name: 'God Mode', politician_initials: 'GM', party: '', designation: 'Platform Administrator', constituency: '', constituency_type: 'national', state: '', district: '', keywords: ['India politics', 'BJP', 'Congress', 'PM Modi', 'Rahul Gandhi', 'Indian elections', 'Parliament India'], tracked_politicians: [{ id: 'tp1', name: 'Narendra Modi', party: 'BJP', initials: 'NM', role: 'Prime Minister', is_competitor: false }, { id: 'tp2', name: 'Rahul Gandhi', party: 'INC', initials: 'RG', role: 'Leader of Opposition', is_competitor: false }], tracked_ministries: ['Finance', 'Home Affairs', 'Defence', 'External Affairs'], tracked_parties: ['BJP', 'INC', 'AAP', 'TMC', 'SP'], tracked_schemes: ['PM Awas Yojana', 'Ayushman Bharat', 'Digital India'], languages: ['english', 'hindi'], geo_scope: [{ level: 'national', name: 'India' }], alert_prefs: { red_sms: false, red_push: false, red_email: false, yellow_push: false, yellow_email: false }, contact_email: 'god@bharatmonitor.in', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+      // Merge any localStorage edits (keywords, tracked politicians etc)
+      const godEdits = getDemoEdits()['god-account']
+      return godEdits ? { ...godBase, ...godEdits } : godBase
     }
     const baseAccount = DEMO_ACCOUNT_MAP[cred.account_id]
     if (!baseAccount) return null
@@ -78,8 +81,9 @@ export async function fetchAllAccounts(): Promise<Account[]> {
 }
 
 export async function updateAccount(userId: string, accountId: string, patch: Partial<Account>): Promise<void> {
-  const isDemoAccount = Object.keys(DEMO_ACCOUNT_MAP).includes(accountId)
-  if (isDemoAccount) { saveDemoEdit(accountId, { ...patch, updated_at: new Date().toISOString() }); return }
+  // Route hardcoded accounts (god + demo) to localStorage persistence
+  const isLocalAccount = Object.keys(DEMO_ACCOUNT_MAP).includes(accountId) || accountId === 'god-account'
+  if (isLocalAccount) { saveDemoEdit(accountId, { ...patch, updated_at: new Date().toISOString() }); return }
 
   // Handle password update via Supabase Auth (separate from profile update)
   const patchAny = patch as any
@@ -130,11 +134,20 @@ export async function createAccount(data: Partial<Account>): Promise<Account> {
   }
   // Generate a stable id if not provided
   if (!safe.id) {
-    // Format: BM-YYYY-XXXXXX (e.g. BM-2026-K4F7M2) — unique alphanumeric
+    // Format: BM-YYYY-XXXXXX — unique alphanumeric ID
     const year  = new Date().getFullYear()
-    const ts    = Date.now().toString(36).toUpperCase().slice(-4) // last 4 chars of timestamp
-    const rand  = Math.random().toString(36).toUpperCase().slice(2, 6) // 4 random chars
+    const ts    = Date.now().toString(36).toUpperCase().slice(-4)
+    const rand  = Math.random().toString(36).toUpperCase().slice(2, 6)
     safe.id = `BM-${year}-${ts}${rand}`
+  }
+  // Store auto-generated credentials in localStorage for admin reference
+  const patchAny = data as any
+  if (patchAny._autoPassword && safe.id) {
+    try {
+      const creds = JSON.parse(localStorage.getItem('bm-account-creds') || '{}')
+      creds[safe.id as string] = { password: patchAny._autoPassword, username: patchAny._username || safe.id, createdAt: new Date().toISOString() }
+      localStorage.setItem('bm-account-creds', JSON.stringify(creds))
+    } catch {}
   }
   safe.created_at = new Date().toISOString()
   safe.updated_at = new Date().toISOString()
