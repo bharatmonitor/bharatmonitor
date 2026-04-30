@@ -1,3 +1,4 @@
+import React from 'react'
 import { useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 'recharts'
 import { Link } from 'react-router-dom'
@@ -419,6 +420,62 @@ interface Props {
   feed: FeedItem[]
 }
 
+
+// ─── Meta Ads Section ─────────────────────────────────────────────────────────
+function MetaAdsSection({ account }: { account: Account | null }) {
+  const [ads, setAds] = React.useState<any[]>([])
+  const [loading, setLoading] = React.useState(false)
+  const [ran, setRan] = React.useState(false)
+  const keywords = account?.keywords || []
+
+  React.useEffect(() => {
+    if (!keywords.length || ran) return
+    setRan(true)
+    setLoading(true)
+    import('@/lib/metaAds').then(({ fetchMetaAds }) => {
+      fetchMetaAds(keywords, { limit: 10 })
+        .then(result => { setAds(result); setLoading(false) })
+        .catch(() => setLoading(false))
+    })
+  }, [keywords.join(',')])
+
+  return (
+    <Section title="META ADS TRACKER" badge={ads.length > 0 ? `${ads.length} ACTIVE` : 'LIVE'}>
+      {loading ? (
+        <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '8px', color: 'var(--t3)', padding: '8px 0' }}>Scanning Meta Ads Library…</div>
+      ) : ads.length === 0 ? (
+        <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '8px', color: 'var(--t3)', lineHeight: 2 }}>
+          {import.meta.env.VITE_META_ACCESS_TOKEN ? 'No political ads found for tracked keywords.' : 'Add VITE_META_ACCESS_TOKEN to Vercel env vars to enable.'}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {ads.slice(0, 5).map(ad => {
+            const spend = ad.spend ? `₹${(+ad.spend.lower_bound/1000).toFixed(0)}K–${(+ad.spend.upper_bound/1000).toFixed(0)}K` : '—'
+            const impr  = ad.impressions ? `${(+ad.impressions.lower_bound/1000).toFixed(0)}K+` : '—'
+            return (
+              <div key={ad.id} style={{ padding: '7px 8px', background: 'rgba(24,119,242,0.06)', border: '1px solid rgba(24,119,242,0.18)', borderRadius: '6px' }}>
+                <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '8px', color: '#1877f2', marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ad.page_name}</div>
+                <div style={{ fontSize: '9px', color: 'var(--t1)', lineHeight: 1.4, marginBottom: '4px' }}>{(ad.ad_creative_bodies?.[0] || ad.ad_creative_link_titles?.[0] || '').substring(0, 80)}…</div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '7px', color: 'var(--t3)' }}>Spend: <span style={{ color: 'var(--t1)' }}>{spend}</span></span>
+                  <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '7px', color: 'var(--t3)' }}>Reach: <span style={{ color: 'var(--t1)' }}>{impr}</span></span>
+                </div>
+                {(ad.region_distribution || []).length > 0 && (
+                  <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '7px', color: 'var(--t3)', marginTop: '3px' }}>
+                    Top region: {ad.region_distribution[0]?.region} ({ad.region_distribution[0]?.percentage?.toFixed(0)}%)
+                  </div>
+                )}
+                <a href={`https://www.facebook.com/ads/library/?id=${ad.id}`} target="_blank" rel="noopener noreferrer" style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '7px', color: '#1877f2', textDecoration: 'none' }}>View in Ads Library ↗</a>
+              </div>
+            )
+          })}
+          {ads.length > 5 && <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '8px', color: 'var(--t3)', textAlign: 'center' }}>+{ads.length - 5} more ads tracked</div>}
+        </div>
+      )}
+    </Section>
+  )
+}
+
 export default function Sidebar({ pulse, competitors, schemes, account, brief, feed }: Props) {
   const { geoScope, setGeoScope } = useDashboardStore()
   return (
@@ -442,7 +499,9 @@ export default function Sidebar({ pulse, competitors, schemes, account, brief, f
           BharatMonitor · Political Intelligence<br/>
           <a href="mailto:ankit@hertzmsc.com" style={{ color:'var(--acc)' }}>ankit@hertzmsc.com</a>
         </div>
+      <MetaAdsSection account={account} />
       </div>
+    <MetaAdsTracker account={account} />
     </div>
   )
 }

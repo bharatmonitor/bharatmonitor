@@ -158,9 +158,14 @@ async function fetchReddit(kw) {
 async function geminiSentiment(text) {
   if (!GEMINI_KEY) return null
   try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ contents:[{parts:[{text:`Indian political news analyst. Rate this for a politician war room.\nReply ONLY with JSON (no markdown): {"bucket":"red|yellow|blue|silver","sentiment":"positive|negative|neutral","tone":-5..5}\nred=crisis/attack, yellow=opposition/threat developing, blue=positive achievement, silver=neutral\nAlso detect SARCASM — if praising ironically, mark bucket=yellow sentiment=negative.\nNews: ${text.slice(0,400)}`}]}, generationConfig:{temperature:0.1,maxOutputTokens:80} }),
+    const prompt = 'Indian political news analyst. Rate this for a politician war room.\nReply ONLY with valid JSON, no markdown: {"bucket":"red|yellow|blue|silver","sentiment":"positive|negative|neutral","tone":-5}\nred=crisis/attack on politician, yellow=opposition threat/developing, blue=positive achievement, silver=neutral/routine\nDetect SARCASM: ironic praise = bucket yellow sentiment negative.\nNews: ' + text.slice(0, 400)
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + GEMINI_KEY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 80 },
+      }),
       signal: AbortSignal.timeout(10000),
     })
     if (!r.ok) return null
@@ -239,7 +244,7 @@ Deno.serve(async (req) => {
     if (!rows.length) return new Response(JSON.stringify({ ok: true, inserted: 0, warning: 'No items from any source', sources: {} }), { headers: CORS })
 
     console.log(`[bm-ingest-v2] Upserting ${rows.length} rows for ${accountId}`)
-    const { error } = await db.from('bm_feed').upsert(rows, { onConflict: 'id', ignoreDuplicates: false })
+    const { error } = await db.from('bm_feed').upsert(rows, { onConflict: 'id', ignoreDuplicates: true })
     if (error) {
       console.error('[bm-ingest-v2] DB error:', error.message, error.code)
       return new Response(JSON.stringify({ ok: false, error: error.message, code: error.code }), { status: 500, headers: CORS })

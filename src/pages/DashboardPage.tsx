@@ -22,6 +22,9 @@ import FeedDetailPanel from '@/components/feeds/FeedDetailPanel'
 import AccountForm from '@/components/auth/AccountForm'
 import AnalyticsPanel from '@/components/dashboard/AnalyticsPanel'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import FuelGauge from '@/components/dashboard/FuelGauge'
+import QuotaModal from '@/components/dashboard/QuotaModal'
+import { getQuota, canSearch, recordSearch, getFuelLevel } from '@/lib/quota'
 import { useDashboardStore, useFeedCountStore } from '@/store'
 import type { Account, FeedItem } from '@/types'
 import toast from 'react-hot-toast'
@@ -47,6 +50,7 @@ export default function DashboardPage() {
 
   const { data: account, isLoading: accountLoading, error: accountError } = useAccount()
   const accountId = account?.id ?? ''
+  const isGodAccount = user?.role === 'god' || accountId === 'god-account'
   const keywords  = account?.keywords ?? []
 
   // ── Data fetches ──────────────────────────────────────────────────────────
@@ -86,6 +90,8 @@ export default function DashboardPage() {
 
   const contradictionChecker = useContradictionChecker(accountId, feed, competitorNames.length > 0 ? competitorNames : trackedPoliticianNames)
   const [contradictionRan, setContradictionRan] = useState(false)
+  const [showQuotaModal, setShowQuotaModal] = useState(false)
+  const [fuelLevel, setFuelLevel] = useState(100)
 
   const updateAccountMutation = useUpdateAccount()
   useRealtimeFeed(accountId)
@@ -105,11 +111,22 @@ export default function DashboardPage() {
   //   2. In parallel: fetch browser-safe APIs (YouTube + CSE + Reddit)
   //   3. Edge fn results → Supabase → useFeedItems() picks up via Realtime
   //   4. Browser results → browserFeed state → immediately shown in feed
+  // Update fuel gauge
+  useEffect(() => {
+    if (accountId) setFuelLevel(getFuelLevel(accountId, isGodAccount))
+  }, [accountId, isGodAccount, ingestDone])
+
   const accountRef = useRef(account)
   useEffect(() => { accountRef.current = account }, [account])
 
   useEffect(() => {
     if (!accountId || ingestDone || accountLoading) return
+    // Check daily quota
+    if (!isGodAccount && !canSearch(accountId, false)) {
+      console.warn('[Dashboard] Daily quota reached')
+      setShowQuotaModal(true)
+      return
+    }
     const acc = accountRef.current
     if (!acc?.keywords?.length) return
 
@@ -126,6 +143,12 @@ export default function DashboardPage() {
           })
           qc.invalidateQueries({ queryKey: ['feed', accountId] })
           qc.invalidateQueries({ queryKey: ['brief', accountId] })
+          // Record quota usage
+          const newQuota = recordSearch(accountId, result.inserted || 0)
+          setFuelLevel(getFuelLevel(accountId, isGodAccount))
+          if (newQuota.searchesUsed >= newQuota.searchesLimit) {
+            setTimeout(() => setShowQuotaModal(true), 3000)
+          }
         } else if (!result.ok) {
           console.warn('[Dashboard] Edge fn failed:', result.error)
           toast.error(`Ingest failed: ${result.error?.slice(0,60)}`, { duration: 5000 })
@@ -255,6 +278,21 @@ export default function DashboardPage() {
     } catch (e: any) { toast.error(`Save failed: ${e.message}`) }
   }
 
+  function handleSearchNow() {
+    if (!isGodAccount && !canSearch(accountId, false)) {
+      setShowQuotaModal(true)
+      return
+    }
+    // Reset ingest flag to re-trigger
+    setIngestDone(false)
+    setBrowserFetched(false)
+    setBrowserFeed([])
+    toast('⚡ Starting live search…', {
+      duration: 2000,
+      style: { background:'#0d1018', border:'1px solid rgba(124,109,250,0.4)', color:'#a89ef8', fontFamily:'IBM Plex Mono, monospace', fontSize:'11px' }
+    })
+  }
+
   // ── Loading / error states ────────────────────────────────────────────────
   if (accountLoading) return (
     <div style={{ minHeight:'100vh', background:'var(--bg)', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -279,6 +317,24 @@ export default function DashboardPage() {
   return (
     <ErrorBoundary>
       <div style={{ height:'100vh', background:'var(--bg)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+        {/* Fuel gauge + Search Now above CommandBar */}
+        {!isGodAccount && (
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'4px 14px', background:'var(--s2)', borderBottom:'1px solid var(--b0)' }}>
+            <FuelGauge accountId={accountId} onUpgradeClick={() => setShowQuotaModal(true)} />
+            <button onClick={handleSearchNow} style={{ fontFamily:'IBM Plex Mono, monospace', fontSize:'8px', padding:'3px 10px', border:'1px solid rgba(124,109,250,0.35)', borderRadius:'5px', background:'rgba(124,109,250,0.06)', color:'#7c6dfa', cursor:'pointer', letterSpacing:'0.5px', display:'flex', alignItems:'center', gap:'5px' }}
+              onMouseEnter={e=>{e.currentTarget.style.background='rgba(124,109,250,0.14)'}}
+              onMouseLeave={e=>{e.currentTarget.style.background='rgba(124,109,250,0.06)'}}>
+              ↺ SEARCH NOW
+            </button>
+          </div>
+        )}
+        {isGodAccount && (
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', padding:'4px 14px', background:'var(--s2)', borderBottom:'1px solid var(--b0)' }}>
+            <button onClick={handleSearchNow} style={{ fontFamily:'IBM Plex Mono, monospace', fontSize:'8px', padding:'3px 10px', border:'1px solid rgba(124,109,250,0.35)', borderRadius:'5px', background:'rgba(124,109,250,0.06)', color:'#7c6dfa', cursor:'pointer', letterSpacing:'0.5px', display:'flex', alignItems:'center', gap:'5px' }}>
+              ↺ SEARCH NOW
+            </button>
+          </div>
+        )}
         <CommandBar account={account!} kpis={kpis} onSearchClick={() => setShowSearch(true)} onSettingsClick={() => setShowSettings(true)} onAnalyticsClick={() => setShowAnalytics(true)} />
         <AIRibbon brief={tickerBrief} />
         <BucketNav />

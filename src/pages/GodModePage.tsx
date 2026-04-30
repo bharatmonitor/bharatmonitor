@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAllAccounts, useCreateAccount, useDeleteAccount, useTriggerIngest } from '@/hooks/useData'
 import { useAuthStore } from '@/store'
+import { grantBonus, getQuota } from '@/lib/quota'
 import AccountForm from '@/components/auth/AccountForm'
 import NavBar from '@/components/layout/NavBar'
 import { HARDCODED_CREDS } from '@/lib/accounts'
@@ -16,6 +17,9 @@ export default function GodModePage() {
   const deleteAccount = useDeleteAccount()
   const triggerIngest = useTriggerIngest()
   const [showCreate, setShowCreate] = useState(false)
+  const [grantTarget, setGrantTarget] = useState<string | null>(null)
+  const [bonusSearches, setBonusSearches] = useState(3)
+  const [bonusItems, setBonusItems] = useState(100)
   const [editAccount, setEditAccount] = useState<Account | null>(null)
   const [searchQ, setSearchQ] = useState('')
 
