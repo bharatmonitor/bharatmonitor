@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 
 import { Link } from 'react-router-dom'
 import type { Account, ConstituencyPulse, CompetitorSummary, SchemeSentiment, IssueOwnershipPoint, AIBrief, FeedItem } from '@/types'
 import { useDashboardStore } from '@/store'
+import MetaAdsTracker from '@/components/dashboard/MetaAdsTracker'
 
 function Section({ title, badge, children }: { title: string; badge?: string; children: React.ReactNode }) {
   return (
