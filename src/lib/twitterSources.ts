@@ -67,40 +67,39 @@ export async function fetchXpozTweets(
   accountId: string,
   options?: { startDate?: string; maxPerKeyword?: number }
 ): Promise<FeedItem[]> {
-  if (!XPOZ_KEY) return []
-
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
-  const SERVICE_KEY  = import.meta.env.VITE_SUPABASE_SERVICE_KEY || ''
-  if (!SUPABASE_URL) return []
+  if (!XPOZ_KEY) { console.warn('[XPOZ] No API key set (VITE_XPOZ_API_KEY)'); return [] }
 
   try {
-    // Always send ANON_KEY as apikey header - required by Supabase edge functions
-    // Use SERVICE_KEY as Bearer if available, otherwise ANON_KEY
-    const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-    const authKey  = SERVICE_KEY || ANON_KEY
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/bm-xpoz-fetch`, {
-      method: 'POST',
+    // Call XPOZ REST API directly - supports CORS from browser
+    // This is the same endpoint the XPOZ TypeScript SDK calls internally
+    const query = keywords.slice(0, 5).map(k => k.includes(' ') ? `"${k}"` : k).join(' OR ')
+    const indiaQuery = `(${query}) india`
+    const limit = Math.min((options?.maxPerKeyword || 20) * Math.min(keywords.length, 5), 100)
+
+    console.log(`[XPOZ] Searching REST API: "${indiaQuery}" limit=${limit}`)
+
+    const params = new URLSearchParams({ q: indiaQuery, limit: String(limit) })
+    if (options?.startDate) params.set('startDate', options.startDate)
+
+    const res = await fetch(`https://api.xpoz.ai/v1/twitter/posts/search?${params}`, {
       headers: {
+        'Authorization': `Bearer ${XPOZ_KEY}`,
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authKey}`,
-        'apikey': ANON_KEY,
+        'User-Agent': 'BharatMonitor/3.0',
       },
-      body: JSON.stringify({
-        keywords:      keywords.slice(0, 5),
-        startDate:     options?.startDate || new Date(Date.now() - 7 * 86400000).toISOString().substring(0, 10),
-        maxPerKeyword: options?.maxPerKeyword || 20,
-        xpozKey:       XPOZ_KEY,
-      }),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(20000),
     })
 
     if (!res.ok) {
-      console.warn('[XPOZ] Edge fn error:', res.status)
+      const body = await res.text().catch(() => '')
+      console.warn(`[XPOZ] REST API error ${res.status}:`, body.slice(0, 200))
       return []
     }
 
     const data = await res.json()
-    const posts: any[] = data?.posts || []
+    // XPOZ response: { data: [...posts], pagination: {...}, total: number }
+    const posts: any[] = data?.data ?? data?.posts ?? (Array.isArray(data) ? data : [])
+    console.log(`[XPOZ] Got ${posts.length} posts for "${indiaQuery}"`)
     const now = nowIso()
 
     return posts.map((post: any): FeedItem => {

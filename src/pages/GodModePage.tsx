@@ -32,15 +32,31 @@ export default function GodModePage() {
     a.state?.toLowerCase().includes(searchQ.toLowerCase())
   )
 
-  async function handleCreate(data: Partial<Account>) {
+  async function handleCreate(data: Partial<Account>, password?: string) {
+    const finalPassword = password || 'demo@1234'
     try {
-      await createAccount.mutateAsync({
+      const result = await createAccount.mutateAsync({
         ...data,
         user_id: `${Date.now()}`.padEnd(16,'0').slice(0,16),
         created_by: user?.id || '9999999999999999',
         is_active: true,
+        _autoPassword: finalPassword,
+        _username: (data.politician_name||'user').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,10) + Math.floor(Math.random()*900+100),
       })
-      toast.success('Account created')
+      // Store credentials in localStorage for God Mode display
+      const accountId = (result as any)?.id || (result as any)?.data?.id
+      if (accountId) {
+        try {
+          const creds = JSON.parse(localStorage.getItem('bm-account-creds') || '{}')
+          creds[accountId] = { 
+            password: finalPassword, 
+            email: data.contact_email || `${(data.politician_name||'user').toLowerCase().replace(/\s/g,'.')}.${accountId.slice(-4)}@bharatmonitor.in`,
+            createdAt: new Date().toISOString()
+          }
+          localStorage.setItem('bm-account-creds', JSON.stringify(creds))
+        } catch {}
+      }
+      toast.success(`Account created · Password: ${finalPassword}`)
       setShowCreate(false)
       refetch()
     } catch (e: any) { toast.error(e.message) }
@@ -147,12 +163,12 @@ export default function GodModePage() {
                         {(() => {
                           const sc = storedCreds[acc.id]
                           const hc = HARDCODED_CREDS.find(c => c.account_id === acc.id)
-                          const email = hc?.email || acc.contact_email || '—'
-                          const pwd = hc?.password || sc?.password || '—'
+                          const email = sc?.email || hc?.email || acc.contact_email || `${(acc.politician_name||'user').toLowerCase().replace(/\s+/g,'.')}.${(acc.id||'').slice(-4)}@bharatmonitor.in`
+                          const pwd = hc?.password || sc?.password || 'demo@1234'
                           return (
-                            <div>
-                              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '8px', color: 'var(--t2)' }}>{email}</div>
-                              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: '#22d3a0', fontWeight: 600 }}>{pwd}</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '8px', color: 'var(--t3)' }}>{email}</div>
+                              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: '#22d3a0', fontWeight: 700, letterSpacing: '0.5px' }}>{pwd}</div>
                             </div>
                           )
                         })()}
@@ -181,7 +197,26 @@ export default function GodModePage() {
       </div>
 
       {showCreate && <AccountForm onClose={() => setShowCreate(false)} onSave={handleCreate} />}
-      {editAccount && <AccountForm account={editAccount} onClose={() => setEditAccount(null)} onSave={async (patch) => { toast.success('Edit saved (demo accounts save locally)'); setEditAccount(null) }} />}
+      {editAccount && <AccountForm account={editAccount} onClose={() => setEditAccount(null)} onSave={async (patch, password) => {
+        // Update password if provided
+        if (password) {
+          try {
+            const creds = JSON.parse(localStorage.getItem('bm-account-creds') || '{}')
+            const existing = creds[editAccount.id] || {}
+            creds[editAccount.id] = { ...existing, password, updatedAt: new Date().toISOString() }
+            localStorage.setItem('bm-account-creds', JSON.stringify(creds))
+            toast.success(`Password updated to: ${password}`)
+          } catch {}
+        }
+        // Save account data
+        try {
+          const { updateAccount } = await import('@/lib/accounts')
+          await updateAccount(user?.id || '', editAccount.id, patch)
+          toast.success('Account updated')
+        } catch {}
+        setEditAccount(null)
+        refetch()
+      }} />}
     </div>
   )
 }

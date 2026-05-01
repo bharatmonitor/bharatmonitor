@@ -20,7 +20,7 @@ const PARTIES = ['BJP','INC','AAP','DMK','TMC','NCP','Shiv Sena','JD(U)','TRS/BR
 interface Props {
   account?: Account | null
   onClose: () => void
-  onSave: (account: Partial<Account>) => void
+  onSave: (account: Partial<Account>, password?: string) => void
 }
 
 type Step = 'profile' | 'tracking' | 'geography' | 'alerts' | 'review'
@@ -30,8 +30,8 @@ const STEP_LABELS = { profile: 'Politician Profile', tracking: 'What to Track', 
 export default function AccountForm({ account, onClose, onSave }: Props) {
   const [step, setStep] = useState<Step>('profile')
   const [saving, setSaving] = useState(false)
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
+  const [newPassword, setNewPassword] = useState(account ? '' : 'demo@1234')
+  const [confirmPassword, setConfirmPassword] = useState(account ? '' : 'demo@1234')
 
   const [form, setForm] = useState<Partial<Account>>({
     politician_name: account?.politician_name || '',
@@ -90,7 +90,7 @@ export default function AccountForm({ account, onClose, onSave }: Props) {
     if (newPassword && newPassword !== confirmPassword) { alert('Passwords do not match'); return }
     setSaving(true)
     await new Promise(r => setTimeout(r, 800))
-    onSave(form, newPassword || undefined)
+    onSave(form, newPassword || (account ? undefined : 'demo@1234'))
     setSaving(false)
   }
 
@@ -172,6 +172,23 @@ export default function AccountForm({ account, onClose, onSave }: Props) {
               <div className="field-group">
                 <label className="field-label">CONTACT PHONE</label>
                 <input value={form.contact_phone} onChange={e => setField('contact_phone', e.target.value)} placeholder="+91 98765 43210" />
+              </div>
+              <div className="field-group">
+                <label className="field-label" style={{ color: '#22d3a0' }}>
+                  {account ? '🔑 RESET PASSWORD (blank = keep current)' : '🔑 LOGIN PASSWORD'}
+                </label>
+                <input
+                  type="text"
+                  value={newPassword}
+                  onChange={e => { setNewPassword(e.target.value); setConfirmPassword(e.target.value) }}
+                  placeholder={account ? 'Enter new password to reset…' : 'demo@1234'}
+                  style={{ fontFamily: 'IBM Plex Mono, monospace', color: newPassword ? '#22d3a0' : undefined }}
+                />
+                {!account && (
+                  <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '8px', color: 'var(--t3)', marginTop: '4px' }}>
+                    Default: demo@1234 — change to set custom password
+                  </div>
+                )}
               </div>
               <div className="field-group" style={{ gridColumn: 'span 2' }}>
                 <label className="field-label">ACCOUNT STATUS</label>
