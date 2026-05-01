@@ -53,12 +53,30 @@ export async function fetchAccount(userId: string): Promise<Account | null> {
   if (cred) {
     if (userId === '9999999999999999') {
       const godBase: Account = { id: 'god-account', user_id: userId, created_by: userId, is_active: true, politician_name: 'God Mode', politician_initials: 'GM', party: '', designation: 'Platform Administrator', constituency: '', constituency_type: 'national', state: '', district: '', keywords: ['India politics', 'BJP', 'Congress', 'PM Modi', 'Rahul Gandhi', 'Indian elections', 'Parliament India'], tracked_politicians: [{ id: 'tp1', name: 'Narendra Modi', party: 'BJP', initials: 'NM', role: 'Prime Minister', is_competitor: false }, { id: 'tp2', name: 'Rahul Gandhi', party: 'INC', initials: 'RG', role: 'Leader of Opposition', is_competitor: false }], tracked_ministries: ['Finance', 'Home Affairs', 'Defence', 'External Affairs'], tracked_parties: ['BJP', 'INC', 'AAP', 'TMC', 'SP'], tracked_schemes: ['PM Awas Yojana', 'Ayushman Bharat', 'Digital India'], languages: ['english', 'hindi'], geo_scope: [{ level: 'national', name: 'India' }], alert_prefs: { red_sms: false, red_push: false, red_email: false, yellow_push: false, yellow_email: false }, contact_email: 'god@bharatmonitor.in', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
-      // Merge any localStorage edits (keywords, tracked politicians etc)
+      // Load saved keywords from Supabase (persists across devices/sessions)
+      try {
+        const { data: dbSaved } = await supabaseAdmin.from('accounts')
+          .select('keywords,tracked_politicians,tracked_ministries,tracked_parties,tracked_schemes')
+          .eq('id', 'god-account').maybeSingle()
+        if (dbSaved?.keywords?.length) {
+          saveDemoEdit('god-account', { keywords: dbSaved.keywords, tracked_politicians: dbSaved.tracked_politicians || godBase.tracked_politicians })
+        }
+      } catch {}
+      // Merge localStorage edits (includes DB-synced keywords)
       const godEdits = getDemoEdits()['god-account']
       return godEdits ? { ...godBase, ...godEdits } : godBase
     }
     const baseAccount = DEMO_ACCOUNT_MAP[cred.account_id]
     if (!baseAccount) return null
+    // Load saved keywords from Supabase (persists across devices/sessions)
+    try {
+      const { data: dbSaved } = await supabaseAdmin.from('accounts')
+        .select('keywords,tracked_politicians,tracked_ministries,tracked_parties,tracked_schemes')
+        .eq('id', cred.account_id).maybeSingle()
+      if (dbSaved?.keywords?.length) {
+        saveDemoEdit(cred.account_id, { keywords: dbSaved.keywords, tracked_politicians: dbSaved.tracked_politicians || baseAccount.tracked_politicians })
+      }
+    } catch {}
     const edits = getDemoEdits()
     const localEdit = edits[cred.account_id]
     return localEdit ? { ...baseAccount, ...localEdit } : baseAccount
@@ -83,7 +101,18 @@ export async function fetchAllAccounts(): Promise<Account[]> {
 export async function updateAccount(userId: string, accountId: string, patch: Partial<Account>): Promise<void> {
   // Route hardcoded accounts (god + demo) to localStorage persistence
   const isLocalAccount = Object.keys(DEMO_ACCOUNT_MAP).includes(accountId) || accountId === 'god-account'
-  if (isLocalAccount) { saveDemoEdit(accountId, { ...patch, updated_at: new Date().toISOString() }); return }
+  if (isLocalAccount) {
+    // Save to localStorage immediately
+    saveDemoEdit(accountId, { ...patch, updated_at: new Date().toISOString() })
+    // Also persist to Supabase so keywords survive across devices
+    try {
+      const KNOWN = ['id','account_id','keywords','tracked_politicians','tracked_ministries','tracked_parties','tracked_schemes','languages','geo_scope','updated_at']
+      const safe: Record<string,unknown> = { id: accountId, updated_at: new Date().toISOString() }
+      for (const k of KNOWN) { if (k in patch) safe[k] = (patch as any)[k] }
+      await supabaseAdmin.from('accounts').upsert(safe, { onConflict: 'id', ignoreDuplicates: false })
+    } catch(e) { console.warn('[accounts] Supabase keyword sync failed:', e) }
+    return
+  }
 
   // Handle password update via Supabase Auth (separate from profile update)
   const patchAny = patch as any

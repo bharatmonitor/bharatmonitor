@@ -17,6 +17,9 @@ export default function GodModePage() {
   const deleteAccount = useDeleteAccount()
   const triggerIngest = useTriggerIngest()
   const [showCreate, setShowCreate] = useState(false)
+  const [storedCreds] = useState<Record<string,{password:string;username?:string}>>(() => {
+    try { return JSON.parse(localStorage.getItem('bm-account-creds') || '{}') } catch { return {} }
+  })
   const [grantTarget, setGrantTarget] = useState<string | null>(null)
   const [bonusSearches, setBonusSearches] = useState(3)
   const [bonusItems, setBonusItems] = useState(100)
@@ -125,7 +128,7 @@ export default function GodModePage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--b0)' }}>
-                    {['NAME', 'PARTY', 'STATE', 'DESIGNATION', 'STATUS', 'KEYWORDS', 'ACTIONS'].map(h => (
+                    {['NAME', 'PARTY', 'LOGIN', 'STATUS', 'KEYWORDS', 'ACTIONS'].map(h => (
                       <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--t3)', letterSpacing: '1px', fontWeight: 400 }}>{h}</th>
                     ))}
                   </tr>
@@ -140,8 +143,20 @@ export default function GodModePage() {
                         </div>
                       </td>
                       <td style={{ padding: '8px 12px', color: 'var(--acc)' }}>{acc.party || '—'}</td>
-                      <td style={{ padding: '8px 12px', color: 'var(--t2)' }}>{acc.state || '—'}</td>
-                      <td style={{ padding: '8px 12px', color: 'var(--t2)' }}>{acc.designation || '—'}</td>
+                      <td style={{ padding: '8px 12px' }}>
+                        {(() => {
+                          const sc = storedCreds[acc.id]
+                          const hc = HARDCODED_CREDS.find(c => c.account_id === acc.id)
+                          const email = hc?.email || acc.contact_email || '—'
+                          const pwd = hc?.password || sc?.password || '—'
+                          return (
+                            <div>
+                              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '8px', color: 'var(--t2)' }}>{email}</div>
+                              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: '#22d3a0', fontWeight: 600 }}>{pwd}</div>
+                            </div>
+                          )
+                        })()}
+                      </td>
                       <td style={{ padding: '8px 12px' }}>
                         <span style={{ padding: '2px 6px', borderRadius: '3px', background: acc.is_active?'rgba(34,211,160,0.1)':'rgba(136,146,164,0.1)', color: acc.is_active?'var(--grn)':'var(--t3)' }}>{acc.is_active?'ACTIVE':'INACTIVE'}</span>
                       </td>

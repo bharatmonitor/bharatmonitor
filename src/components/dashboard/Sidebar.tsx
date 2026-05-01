@@ -1,5 +1,5 @@
 import React from 'react'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 'recharts'
 import { Link } from 'react-router-dom'
 import type { Account, ConstituencyPulse, CompetitorSummary, SchemeSentiment, IssueOwnershipPoint, AIBrief, FeedItem } from '@/types'
@@ -53,19 +53,43 @@ function AIAnalysis({ brief }: { brief: AIBrief | null }) {
   )
 }
 
+const PLAT_COLORS_S: Record<string,string> = {
+  twitter:'#1d9bf0', instagram:'#e1306c', facebook:'#1877f2',
+  whatsapp:'#25d366', youtube:'#ff2020', news:'#8892a4', reddit:'#ff4500',
+}
+
 function SentimentPanel({ feed }: { feed: FeedItem[] }) {
+  const [view, setView] = useState<'overall'|'channel'>('overall')
   const total = feed.length || 1
   const pos = feed.filter(f => f.sentiment === 'positive').length
   const neg = feed.filter(f => f.sentiment === 'negative').length
   const neu = total - pos - neg
   const sent = [
-    { name:'Positive', value: Math.round((pos / total) * 100), color:'#22d3a0' },
-    { name:'Negative', value: Math.round((neg / total) * 100), color:'#f03e3e' },
-    { name:'Neutral',  value: Math.round((neu / total) * 100), color:'#2e3650' },
+    { name:'Positive', value: Math.round((pos / total) * 100), color:'#22d3a0', count: pos },
+    { name:'Negative', value: Math.round((neg / total) * 100), color:'#f03e3e', count: neg },
+    { name:'Neutral',  value: Math.round((neu / total) * 100), color:'#2e3650', count: neu },
   ]
+
+  const byChannel = useMemo(() => {
+    const m: Record<string,{pos:number,neg:number,neu:number,total:number}> = {}
+    feed.forEach(f => {
+      if (!m[f.platform]) m[f.platform]={pos:0,neg:0,neu:0,total:0}
+      m[f.platform].total++
+      if (f.sentiment==='positive') m[f.platform].pos++
+      else if (f.sentiment==='negative') m[f.platform].neg++
+      else m[f.platform].neu++
+    })
+    return Object.entries(m).sort((a,b)=>b[1].total-a[1].total)
+  }, [feed])
+
   return (
     <Section title="SENTIMENT" badge={`${feed.length} ITEMS`}>
-      <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+      <div style={{ display:'flex', gap:'4px', marginBottom:'8px' }}>
+        {(['overall','channel'] as const).map(v=>(
+          <button key={v} onClick={()=>setView(v)} style={{ fontFamily:'IBM Plex Mono, monospace', fontSize:'7px', padding:'2px 7px', border:`1px solid ${view===v?'var(--acc)':'var(--b1)'}`, borderRadius:'10px', background:view===v?'rgba(249,115,22,0.1)':'transparent', color:view===v?'var(--acc)':'var(--t3)', cursor:'pointer' }}>{v.toUpperCase()}</button>
+        ))}
+      </div>
+      {view==='overall' ? (
         <div style={{ flex:1 }}>
           {sent.map(s=>(
             <div key={s.name} style={{ display:'flex', alignItems:'center', gap:'5px', marginBottom:'5px' }}>
@@ -77,7 +101,32 @@ function SentimentPanel({ feed }: { feed: FeedItem[] }) {
             </div>
           ))}
         </div>
-      </div>
+      ) : (
+        <div>
+          {byChannel.length===0 && <div style={{ fontFamily:'IBM Plex Mono, monospace', fontSize:'8px', color:'var(--t3)' }}>No data yet</div>}
+          {byChannel.map(([plat, s])=>{
+            const c = PLAT_COLORS_S[plat] || '#8892a4'
+            const pp = Math.round(s.pos/s.total*100), np = Math.round(s.neg/s.total*100)
+            return (
+              <div key={plat} style={{ marginBottom:'7px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'2px' }}>
+                  <span style={{ fontFamily:'IBM Plex Mono, monospace', fontSize:'8px', color:c }}>{plat.toUpperCase()}</span>
+                  <span style={{ fontFamily:'IBM Plex Mono, monospace', fontSize:'7px', color:'var(--t3)' }}>{s.total}</span>
+                </div>
+                <div style={{ height:'5px', background:'var(--s3)', borderRadius:'3px', overflow:'hidden', display:'flex' }}>
+                  <div style={{ width:`${pp}%`, height:'100%', background:'#22d3a0' }}/>
+                  <div style={{ width:`${np}%`, height:'100%', background:'#f03e3e' }}/>
+                </div>
+                <div style={{ display:'flex', gap:'8px', marginTop:'2px' }}>
+                  <span style={{ fontFamily:'IBM Plex Mono, monospace', fontSize:'7px', color:'#22d3a0' }}>+{pp}%</span>
+                  <span style={{ fontFamily:'IBM Plex Mono, monospace', fontSize:'7px', color:'#f03e3e' }}>-{np}%</span>
+                  <span style={{ fontFamily:'IBM Plex Mono, monospace', fontSize:'7px', color:'var(--t3)' }}>{100-pp-np}% neu</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </Section>
   )
 }
