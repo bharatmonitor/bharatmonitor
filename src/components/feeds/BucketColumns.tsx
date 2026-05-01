@@ -215,7 +215,7 @@ function BucketColumn({ bucket, items }: { bucket: BucketColor; items: FeedItem[
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export default function BucketColumns({ feed, accountId }: { feed: FeedItem[]; accountId: string }) {
-  const platform = useDashboardStore(s => s.platformFilter)
+  const platform = useDashboardStore(s => s.activePlatform)
   const setAllCounts = useFeedCountStore(s => s.setAllCounts)
 
   const filtered = useMemo(() => {
