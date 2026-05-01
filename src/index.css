@@ -156,3 +156,33 @@ select option {
   display: flex;
   flex-direction: column;
 }
+
+/* ── Better selection highlight ─────────────────────────────────────────── */
+::selection {
+  background: rgba(249, 115, 22, 0.35);
+  color: #fff;
+}
+::-moz-selection {
+  background: rgba(249, 115, 22, 0.35);
+  color: #fff;
+}
+
+/* Selected feed card */
+.feed-card-selected {
+  background: rgba(249, 115, 22, 0.08) !important;
+  border-left: 3px solid #f97316 !important;
+  outline: 1px solid rgba(249,115,22,0.3);
+}
+
+/* Selected tab/button active state */
+.tab-active {
+  background: rgba(249, 115, 22, 0.12) !important;
+  color: #f97316 !important;
+  border-color: rgba(249,115,22,0.4) !important;
+}
+
+/* Focus rings */
+button:focus-visible, a:focus-visible {
+  outline: 2px solid rgba(249,115,22,0.6);
+  outline-offset: 2px;
+}

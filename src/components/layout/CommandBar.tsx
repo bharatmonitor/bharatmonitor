@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store'
+import DownloadReportButton from '@/components/layout/DownloadReportButton'
 import QuickScan from '@/components/quickscan/QuickScan'
 import type { Account } from '@/types'
 

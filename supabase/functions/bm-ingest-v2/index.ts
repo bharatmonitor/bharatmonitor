@@ -142,6 +142,27 @@ async function fetchYouTube(kw) {
   } catch(e) { console.warn(`[YT] ${kw} error:`, e.message); return [] }
 }
 
+// ─── Source 6b: Twitter/X via GDELT ─────────────────────────────────────────
+// GDELT monitors Twitter/social media. Search with social: prefix.
+async function fetchGDELTTwitter(kw) {
+  try {
+    const q = encodeURIComponent('"' + kw + '" site:twitter.com OR site:x.com')
+    const url = 'https://api.gdeltproject.org/api/v2/doc/doc?query=' + q + '&mode=artlist&maxrecords=15&format=json'
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) })
+    if (!r.ok) return []
+    const d = await r.json()
+    const arts = (d?.articles || []).filter(a => a.url && (a.url.includes('twitter.com') || a.url.includes('x.com')))
+    console.log('[GDELTTwitter] ' + kw + ': ' + arts.length + ' tweets')
+    return arts.map(a => ({
+      id: 'gdx-' + (a.url||'').slice(-25).replace(/[^a-z0-9]/gi,''),
+      title: a.title || '', link: a.url || '',
+      source: a.domain || 'X/Twitter',
+      pubDate: a.seendate ? a.seendate.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/,'$1-$2-$3T$4:$5:$6Z') : new Date().toISOString(),
+      platform: 'twitter', body: ''
+    }))
+  } catch(e) { console.warn('[GDELTTwitter] ' + kw + ':', e.message); return [] }
+}
+
 // ─── Source 6: Reddit ─────────────────────────────────────────────────────────
 async function fetchReddit(kw) {
   try {
@@ -203,6 +224,8 @@ Deno.serve(async (req) => {
       ...kws.slice(0,3).map(kw => fetchYouTube(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // Reddit
       ...kws.slice(0,3).map(kw => fetchReddit(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
+      // Twitter/X content via GDELT social media indexing
+      ...kws.slice(0,4).map(kw => fetchGDELTTwitter(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
     ])
 
     console.log(`[bm-ingest-v2] Total raw: ${allRaw.length}`)

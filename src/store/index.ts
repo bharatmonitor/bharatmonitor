@@ -41,6 +41,7 @@ interface DashboardStore extends DashboardState {
   selectedItem:   FeedItem | null
   openItem:       (item: FeedItem) => void
   closeItem:      () => void
+  selectItem:     (item: FeedItem) => void
 }
 
 export const useDashboardStore = create<DashboardStore>()((set) => ({
@@ -56,6 +57,7 @@ export const useDashboardStore = create<DashboardStore>()((set) => ({
   closeVideo: () => set({ isVideoOpen: false, activeVideo: null }),
   openItem:  (item) => set({ selectedItem: item }),
   closeItem: () => set({ selectedItem: null }),
+  selectItem: (item) => set({ selectedItem: item }),
 }))
 
 interface FeedCountStore {

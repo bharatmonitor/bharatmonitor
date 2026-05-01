@@ -10,6 +10,7 @@ import DashboardPage       from '@/pages/DashboardPage'
 import GodModePage         from '@/pages/GodModePage'
 import SettingsPage        from '@/pages/SettingsPage'
 import KeywordStreamPage   from '@/pages/KeywordStreamPage'
+import ReportPage from '@/pages/ReportPage'
 import PoliticalTrendsPage from '@/pages/PoliticalTrendsPage'
 import NarrativeGapsPage   from '@/pages/NarrativeGapsPage'
 import DataTablePage       from '@/pages/DataTablePage'
@@ -55,7 +56,8 @@ export default function App() {
           <Route path="/auth"              element={<AuthPage />} />
           <Route path="/dashboard"         element={<AuthGuard><DashboardPage /></AuthGuard>} />
           <Route path="/settings"          element={<AuthGuard><SettingsPage /></AuthGuard>} />
-          <Route path="/trends"            element={<AuthGuard><PoliticalTrendsPage /></AuthGuard>} />
+          <Route path="/report" element={<ReportPage />} />
+            <Route path="/trends"            element={<AuthGuard><PoliticalTrendsPage /></AuthGuard>} />
           <Route path="/content"           element={<AuthGuard><NarrativeGapsPage /></AuthGuard>} />
           <Route path="/keywords/:keyword" element={<AuthGuard><KeywordStreamPage /></AuthGuard>} />
           <Route path="/data"              element={<AuthGuard><DataTablePage /></AuthGuard>} />

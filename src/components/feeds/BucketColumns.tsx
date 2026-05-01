@@ -87,7 +87,8 @@ function QuoteIntelColumn({ accountId }: { accountId: string }) {
 }
 
 function ContradictionCard({ contradiction: c }: { contradiction: any }) {
-  const selectItem = useDashboardStore(s => s.selectItem)
+  const selectItem   = useDashboardStore(s => s.selectItem)
+  const selectedItem = useDashboardStore(s => s.selectedItem)
 
   const typeLabel = c.contradiction_type === 'flip'        ? 'POSITION FLIP'
                   : c.contradiction_type === 'vote_record' ? 'VOTE RECORD'
@@ -166,7 +167,8 @@ function ContradictionCard({ contradiction: c }: { contradiction: any }) {
 
 function BucketColumn({ bucket, items }: { bucket: BucketColor; items: FeedItem[] }) {
   const cfg = BUCKET_CONFIG[bucket]
-  const selectItem = useDashboardStore(s => s.selectItem)
+  const selectItem   = useDashboardStore(s => s.selectItem)
+  const selectedItem = useDashboardStore(s => s.selectedItem)
 
   return (
     <div id={`bcol-${bucket}`} style={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, flex: 1 }}>
@@ -201,7 +203,7 @@ function BucketColumn({ bucket, items }: { bucket: BucketColor; items: FeedItem[
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {items.map(item => (
-              <FeedCard key={item.id} item={item} onClick={() => selectItem(item)} />
+              <FeedCard key={item.id} item={item} onClick={() => selectItem(item)} selected={selectedItem?.id === item.id} />
             ))}
           </div>
         )}
