@@ -16,7 +16,9 @@ import type { FeedItem } from '@/types'
 
 const XPOZ_KEY  = import.meta.env.VITE_XPOZ_API_KEY  || ''
 const APIFY_KEY = import.meta.env.VITE_APIFY_API_KEY  || ''
-const GETX_KEY  = import.meta.env.VITE_GETX_API || import.meta.env.VITE_GOOGLE_CSE_KEY || ''
+// GetX uses Google CSE API (key must be AIzaSy... format)
+const GETX_KEY  = import.meta.env.VITE_GOOGLE_CSE_KEY || ''
+const GETX_QUOTA_KEY = import.meta.env.VITE_GETX_API || '' // tracked separately
 const CSE_CX    = import.meta.env.VITE_GOOGLE_CSE_CX  || ''
 
 // ─── Shared scorer ────────────────────────────────────────────────────────────

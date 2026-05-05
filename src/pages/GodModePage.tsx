@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAllAccounts, useCreateAccount, useDeleteAccount, useTriggerIngest } from '@/hooks/useData'
 import { useAuthStore } from '@/store'
-import { grantBonus, getQuota } from '@/lib/quota'
+import { grantBonus, getQuota, setCustomLimits, getFuelBreakdown } from '@/lib/quota'
 import AccountForm from '@/components/auth/AccountForm'
 import NavBar from '@/components/layout/NavBar'
 import { HARDCODED_CREDS } from '@/lib/accounts'
@@ -21,8 +21,7 @@ export default function GodModePage() {
     try { return JSON.parse(localStorage.getItem('bm-account-creds') || '{}') } catch { return {} }
   })
   const [grantTarget, setGrantTarget] = useState<string | null>(null)
-  const [bonusSearches, setBonusSearches] = useState(3)
-  const [bonusItems, setBonusItems] = useState(100)
+  const [customLimits, setCustomLimitsState] = useState({ searches: 3, news: 5, youtube: 10, social: 85 })
   const [editAccount, setEditAccount] = useState<Account | null>(null)
   const [searchQ, setSearchQ] = useState('')
 
@@ -178,11 +177,37 @@ export default function GodModePage() {
                       </td>
                       <td style={{ padding: '8px 12px', color: 'var(--t3)' }}>{(acc.keywords||[]).length} keywords</td>
                       <td style={{ padding: '8px 12px' }}>
-                        <div style={{ display: 'flex', gap: '5px' }}>
+                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                           <button onClick={() => setEditAccount(acc)} style={{ padding: '3px 7px', border: '1px solid var(--b1)', borderRadius: '3px', background: 'transparent', color: 'var(--t2)', cursor: 'pointer', fontSize: '8px' }}>EDIT</button>
                           <button onClick={() => handleIngest(acc)} style={{ padding: '3px 7px', border: '1px solid rgba(34,211,160,0.25)', borderRadius: '3px', background: 'transparent', color: 'var(--grn)', cursor: 'pointer', fontSize: '8px' }}>INGEST</button>
+                          <button onClick={() => { setGrantTarget(acc.id); const bd = getFuelBreakdown(acc.id); setCustomLimitsState({ searches: 3 + (bd.searches?.limit||3) - 3, news: bd.news?.limit || 5, youtube: bd.youtube?.limit || 10, social: bd.social?.limit || 85 }) }} style={{ padding: '3px 7px', border: '1px solid rgba(249,115,22,0.3)', borderRadius: '3px', background: 'transparent', color: 'var(--acc)', cursor: 'pointer', fontSize: '8px' }}>QUOTA</button>
                           <button onClick={() => handleDelete(acc.id)} style={{ padding: '3px 7px', border: '1px solid rgba(240,62,62,0.25)', borderRadius: '3px', background: 'transparent', color: 'var(--red)', cursor: 'pointer', fontSize: '8px' }}>DEL</button>
                         </div>
+                        {grantTarget === acc.id && (
+                          <div style={{ marginTop: '6px', padding: '8px', background: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: '6px' }}>
+                            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '8px', color: 'var(--acc)', marginBottom: '6px' }}>SET DAILY LIMITS</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '6px' }}>
+                              {[
+                                { label: 'Searches', key: 'searches', min: 1, max: 20 },
+                                { label: 'News', key: 'news', min: 1, max: 50 },
+                                { label: 'YouTube', key: 'youtube', min: 1, max: 50 },
+                                { label: 'Social/X', key: 'social', min: 10, max: 500 },
+                              ].map(f => (
+                                <div key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '7px', color: 'var(--t3)' }}>{f.label}</span>
+                                  <input type="number" min={f.min} max={f.max}
+                                    value={(customLimits as any)[f.key]}
+                                    onChange={e => setCustomLimitsState(prev => ({ ...prev, [f.key]: Number(e.target.value) }))}
+                                    style={{ width: '60px', background: 'var(--s2)', border: '1px solid var(--b1)', color: 'var(--t0)', borderRadius: '3px', padding: '2px 5px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px' }} />
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <button onClick={() => handleSetLimits(acc.id)} style={{ padding: '3px 10px', border: '1px solid rgba(249,115,22,0.5)', borderRadius: '3px', background: 'rgba(249,115,22,0.08)', color: 'var(--acc)', cursor: 'pointer', fontSize: '8px' }}>APPLY</button>
+                              <button onClick={() => setGrantTarget(null)} style={{ padding: '3px 8px', border: '1px solid var(--b1)', borderRadius: '3px', background: 'transparent', color: 'var(--t3)', cursor: 'pointer', fontSize: '8px' }}>CANCEL</button>
+                            </div>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
