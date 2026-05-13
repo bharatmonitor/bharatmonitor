@@ -55,29 +55,78 @@ export async function syncCredentialToSupabase(
   } catch {}
 
   // Write to Supabase so credentials work across devices
+  const credRow = {
+    id:             accountId,
+    login_email:    loginEmail.toLowerCase().trim(),
+    login_password: loginPassword,
+    login_name:     meta.name  || '',
+    login_role:     meta.role  || 'user',
+    login_tier:     meta.tier  || 'elections',
+    updated_at:     new Date().toISOString(),
+  }
+  // Try admin client first (has service key — bypasses RLS)
   try {
-    await supabaseAdmin.from('accounts').upsert({
-      id: accountId,
-      login_email:    loginEmail.toLowerCase().trim(),
-      login_password: loginPassword,
-      login_name:     meta.name     || '',
-      login_role:     meta.role     || 'user',
-      login_tier:     meta.tier     || 'elections',
-      updated_at:     new Date().toISOString(),
-    }, { onConflict: 'id', ignoreDuplicates: false })
-  } catch (e) { console.warn('[BM] Supabase credential sync failed:', e) }
+    const { error } = await supabaseAdmin.from('accounts').upsert(credRow, { onConflict: 'id', ignoreDuplicates: false })
+    if (error) throw error
+    console.log('[BM] syncCred: written to Supabase via admin ✓', loginEmail)
+    return
+  } catch (e: any) {
+    console.warn('[BM] syncCred admin failed, trying anon:', e?.message)
+  }
+  // Fallback: anon client (works if RLS policy allows update)
+  try {
+    const { error } = await supabase.from('accounts').upsert(credRow, { onConflict: 'id', ignoreDuplicates: false })
+    if (error) throw error
+    console.log('[BM] syncCred: written via anon client ✓', loginEmail)
+  } catch (e: any) {
+    console.error('[BM] syncCred FAILED both methods:', e?.message)
+    console.error('[BM] Make sure add_login_columns.sql was run in Supabase SQL Editor')
+  }
 }
 
 // Login step 1.5: check Supabase accounts table by login_email + login_password
 // Called when localStorage check fails — handles cross-device logins
 export async function validateSupabaseStoredCred(email: string, password: string): Promise<HardcodedCred | null> {
   try {
-    const { data } = await supabase.from('accounts')
+    const emailClean = email.trim().toLowerCase()
+    console.log('[BM] Step 2: checking Supabase accounts for', emailClean)
+
+    const { data, error } = await supabase.from('accounts')
       .select('id, login_email, login_password, login_name, login_role, login_tier, contact_email, politician_name')
-      .eq('login_email', email.trim().toLowerCase())
+      .eq('login_email', emailClean)
       .maybeSingle()
 
-    if (!data || data.login_password !== password) return null
+    console.log('[BM] Step 2 result:', { data: data ? { id: data.id, login_email: data.login_email, has_password: !!data.login_password } : null, error: error?.message })
+
+    if (error) {
+      // Column might not exist yet — run add_login_columns.sql in Supabase
+      console.warn('[BM] Step 2 DB error (login columns may not exist):', error.message)
+      return null
+    }
+
+    if (!data) {
+      // Try matching by contact_email as fallback
+      const { data: data2 } = await supabase.from('accounts')
+        .select('id, login_email, login_password, login_name, login_role, login_tier, contact_email, politician_name')
+        .eq('contact_email', emailClean)
+        .maybeSingle()
+      if (data2 && data2.login_password === password) {
+        console.log('[BM] Step 2: matched by contact_email')
+        return {
+          id: data2.id, email: data2.contact_email || emailClean,
+          password: data2.login_password, role: (data2.login_role || 'user') as any,
+          tier: (data2.login_tier || 'elections') as any,
+          account_id: data2.id, name: data2.login_name || data2.politician_name || data2.id,
+        }
+      }
+      console.log('[BM] Step 2: no account found for', emailClean)
+      return null
+    }
+
+    if (data.login_password !== password) {
+      console.log('[BM] Step 2: password mismatch for', emailClean)
+      return null
+    }
 
     return {
       id:         data.id,
