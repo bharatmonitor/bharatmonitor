@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output — Vercel builds from source
+dist/
+
+# Environment variables — NEVER COMMIT
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Vite temp files
+vite.config.ts.timestamp-*.mjs

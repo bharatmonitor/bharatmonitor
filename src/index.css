@@ -1,0 +1,347 @@
+/* ============================================================
+   BharatMonitor — Global Styles
+   ============================================================ */
+
+:root {
+  /* Background palette */
+  --bg:  #0d1018;
+  --s1:  #111827;   /* card surfaces */
+  --s2:  #161d2c;
+  --s3:  #1e2535;
+  --s4:  #1e2639;
+
+  /* Border shades */
+  --b0:  rgba(255,255,255,0.04);
+  --b1:  rgba(255,255,255,0.08);
+  --b2:  rgba(255,255,255,0.12);
+  --b3:  rgba(255,255,255,0.20);
+
+  /* Text shades */
+  --t0:  #edf0f8;
+  --t1:  #c8d0e5;
+  --t2:  #9aa3b8;
+  --t3:  #545f78;
+
+  /* Semantic colors */
+  --acc: #f97316;   /* BharatMonitor orange accent */
+  --red: #f03e3e;
+  --yel: #f5a623;
+  --grn: #22d3a0;
+  --blu: #3d8ef0;
+  --sil: #8892a4;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  font-size: 14px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--t0);
+  font-family: 'IBM Plex Mono', 'Inter', system-ui, monospace;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+
+/* ── Form elements ───────────────────────────────────────── */
+input, select, textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--s2);
+  border: 1px solid var(--b1);
+  border-radius: 6px;
+  color: var(--t0);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: rgba(249,115,22,0.4);
+}
+input::placeholder, textarea::placeholder {
+  color: var(--t3);
+}
+select option {
+  background: var(--s2);
+  color: var(--t0);
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 18px;
+  background: var(--acc);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn-primary:hover { opacity: 0.88; }
+.btn-primary:active { transform: scale(0.98); }
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  background: transparent;
+  color: var(--t2);
+  border: 1px solid var(--b1);
+  border-radius: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-ghost:hover { border-color: var(--b2); color: var(--t0); }
+
+/* ── Form groups ─────────────────────────────────────────── */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.field-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--t3);
+}
+
+/* ── Animations ──────────────────────────────────────────── */
+@keyframes blink {
+  0%, 100% { opacity: 1 }
+  50% { opacity: 0.25 }
+}
+@keyframes ticker {
+  from { transform: translateX(0) }
+  to { transform: translateX(-50%) }
+}
+@keyframes spin {
+  to { transform: rotate(360deg) }
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0 }
+  to { transform: translateX(0); opacity: 1 }
+}
+@keyframes fadeIn {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}
+
+/* ── Dashboard layout fix ────────────────────────────────── */
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Better selection highlight ─────────────────────────────────────────── */
+::selection {
+  background: rgba(249, 115, 22, 0.35);
+  color: #fff;
+}
+::-moz-selection {
+  background: rgba(249, 115, 22, 0.35);
+  color: #fff;
+}
+
+/* Selected feed card */
+.feed-card-selected {
+  background: rgba(249, 115, 22, 0.08) !important;
+  border-left: 3px solid #f97316 !important;
+  outline: 1px solid rgba(249,115,22,0.3);
+}
+
+/* Selected tab/button active state */
+.tab-active {
+  background: rgba(249, 115, 22, 0.12) !important;
+  color: #f97316 !important;
+  border-color: rgba(249,115,22,0.4) !important;
+}
+
+/* Focus rings */
+button:focus-visible, a:focus-visible {
+  outline: 2px solid rgba(249,115,22,0.6);
+  outline-offset: 2px;
+}
+
+/* ── Navigation ──────────────────────────────────────────── */
+nav button, .nav-btn {
+  min-height: 34px;
+  min-width: 44px;
+}
+
+/* ── Improved focus visibility ───────────────────────────── */
+button:focus-visible {
+  outline: 2px solid rgba(249,115,22,0.7);
+  outline-offset: 2px;
+}
+
+/* ── Card base ───────────────────────────────────────────── */
+.bm-card {
+  background: var(--s1);
+  border: 1px solid var(--b1);
+  border-radius: 12px;
+}
+
+/* ── Tag/badge ───────────────────────────────────────────── */
+.bm-badge {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 1px;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+/* ── Input focus ring ────────────────────────────────────── */
+input:focus, select:focus, textarea:focus {
+  box-shadow: 0 0 0 2px rgba(249,115,22,0.15);
+}
+
+/* ── Smooth page transitions ─────────────────────────────── */
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: pageIn 0.2s ease-out;
+}
+
+/* ── pulse-ring for crisis indicators ────────────────────── */
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(240,62,62,0.5); }
+  70%  { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — TABLET (max 1024px)
+═══════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  /* Dashboard: stack columns vertically */
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+  }
+  /* Sidebar becomes bottom panel */
+  .dashboard-sidebar {
+    width: 100% !important;
+    max-height: 40vh !important;
+    border-left: none !important;
+    border-top: 1px solid rgba(255,255,255,0.07) !important;
+  }
+  /* Bucket columns: 2x2 grid */
+  .bucket-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  /* Analyse page: single column */
+  .analyse-grid-2col {
+    grid-template-columns: 1fr !important;
+  }
+  /* God mode table: scroll */
+  .god-table-wrap {
+    overflow-x: auto !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — MOBILE (max 640px)
+═══════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* All pages: tighter padding */
+  .page-body {
+    padding: 14px 12px !important;
+  }
+  /* Cards: tighter padding */
+  .bm-card {
+    border-radius: 8px !important;
+    padding: 12px !important;
+  }
+  /* KPI grids: 2 columns max */
+  .kpi-grid-5 {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .kpi-grid-6 {
+    grid-template-columns: 1fr 1fr 1fr !important;
+  }
+  /* Bucket columns: single column */
+  .bucket-grid {
+    grid-template-columns: 1fr !important;
+  }
+  /* Tab bars: scroll horizontally */
+  .tab-bar {
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+  .tab-bar button {
+    flex-shrink: 0 !important;
+    padding: 8px 12px !important;
+    font-size: 8px !important;
+  }
+  /* Hide non-essential in CommandBar on mobile */
+  .cmd-report-btn,
+  .cmd-crisis-btn {
+    display: none !important;
+  }
+  /* God mode: hide some table cols */
+  .god-col-hide-mobile {
+    display: none !important;
+  }
+  /* Typography scale down */
+  h1, .page-title { font-size: 16px !important; }
+  /* Platform filter: scroll */
+  .platform-filter {
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    flex-wrap: nowrap !important;
+  }
+  /* Feed cards: tighter */
+  .feed-card {
+    padding: 8px 10px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   TOUCH TARGETS — min 44px for all interactive
+═══════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  button {
+    min-height: 40px !important;
+  }
+  input, select {
+    min-height: 40px !important;
+    font-size: 16px !important; /* prevents iOS zoom */
+  }
+  /* Smooth scrolling on touch */
+  * { -webkit-overflow-scrolling: touch; }
+}
+
+/* ═══════════════════════════════════════════════
+   HIDE SCROLLBARS (keep functionality)
+═══════════════════════════════════════════════ */
+.scrollbar-none {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.scrollbar-none::-webkit-scrollbar { display: none !important; }
