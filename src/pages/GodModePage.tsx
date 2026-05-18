@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAllAccounts, useCreateAccount, useDeleteAccount, useTriggerIngest } from '@/hooks/useData'
 import { useAuthStore } from '@/store'
 import { syncCredentialToSupabase, HARDCODED_CREDS, updateAccount } from '@/lib/accounts'
-import { getQuota, setCustomLimits, getFuelBreakdown } from '@/lib/quota'
+import { getQuota, setCustomLimits, getFuelBreakdown, resetQuota, clearExceededFlags } from '@/lib/quota'
 import AccountForm from '@/components/auth/AccountForm'
 import NavBar from '@/components/layout/NavBar'
 import { supabase } from '@/lib/supabase'
@@ -153,21 +153,37 @@ export default function GodModePage() {
   }
 
   async function handleCreate(data: Partial<Account>, password?: string) {
-    const finalPwd = password || 'demo@1234'
+    const finalPwd   = password || 'demo@1234'
+    const newId      = `BM-${new Date().getFullYear()}-${Math.random().toString(36).slice(2,10).toUpperCase()}`
+    const cleanName  = (data.politician_name||'user').toLowerCase().replace(/[^a-z0-9]/g,'.').replace(/\.{2,}/g,'.').replace(/\.$/,'')
+    const loginEmail = (data.contact_email || `${cleanName}.${newId.slice(-4)}@bharatmonitor.in`).toLowerCase().trim()
     try {
-      const result: any = await createAccount.mutateAsync({
-        ...data, user_id:`${Date.now()}`.slice(0,16), created_by:user?.id||'9999999999999999', is_active:true,
+      await createAccount.mutateAsync({
+        ...data,
+        id:             newId,
+        user_id:        `${Date.now()}`.slice(0,16),
+        created_by:     user?.id || '9999999999999999',
+        is_active:      true,
+        login_email:    loginEmail,
+        login_password: finalPwd,
+        login_name:     data.politician_name || newId,
+        login_role:     'user',
+        login_tier:     'elections',
       })
-      const accountId = result?.id || result?.data?.id || `bm-${Date.now()}`
-      const loginEmail = data.contact_email ||
-        `${(data.politician_name||'user').toLowerCase().replace(/[^a-z0-9]/g,'.')}.${String(accountId).slice(-4)}@bharatmonitor.in`
-      await syncCredentialToSupabase(accountId, loginEmail, finalPwd, {
-        name: data.politician_name||accountId, role:'user', tier:'elections',
+      // Also call syncCredentialToSupabase to ensure it's written
+      // (belt-and-suspenders alongside the DB trigger)
+      await syncCredentialToSupabase(newId, loginEmail, finalPwd, {
+        name: data.politician_name || newId, role: 'user', tier: 'elections',
       })
-      toast.success(`✓ Created · ${loginEmail} / ${finalPwd}`, { duration:8000,
-        style:{ background:CARD, border:`1px solid ${GREEN}40`, color:GREEN, fontFamily:mono, fontSize:'11px' } })
+      toast.success(
+        `✓ Account created · Share these credentials:\n📧 ${loginEmail}\n🔑 ${finalPwd}`,
+        { duration: 15000, style:{ background:CARD, border:`1px solid ${GREEN}40`, color:GREEN, fontFamily:mono, fontSize:'11px' } }
+      )
       setShowCreate(false); refetch()
-    } catch (e:any) { toast.error(e.message) }
+    } catch (e:any) {
+      console.error('[GodMode] createAccount error:', e)
+      toast.error(`Create failed: ${e.message}`)
+    }
   }
 
   async function handleSaveCred(acc: Account, email: string, password: string, name: string) {
@@ -345,6 +361,12 @@ export default function GodModePage() {
                                 onMouseLeave={e=>{e.currentTarget.style.background=ACC+'08'}}>
                                 ⛽ Quota
                               </button>
+                              <button onClick={() => { clearExceededFlags(acc.id); resetQuota(acc.id); toast.success(`✓ Quota reset for ${acc.politician_name}`) }}
+                                style={{ padding:'4px 9px', border:`1px solid rgba(34,211,160,0.4)`, borderRadius:'5px', background:'rgba(34,211,160,0.06)', color:'#22d3a0', cursor:'pointer', fontSize:'8px' }}
+                                onMouseEnter={e=>{e.currentTarget.style.background='rgba(34,211,160,0.18)'}}
+                                onMouseLeave={e=>{e.currentTarget.style.background='rgba(34,211,160,0.06)'}}>
+                                ↺ Reset
+                              </button>
                               <button onClick={() => handleDelete(acc.id)}
                                 style={{ padding:'4px 9px', border:`1px solid ${RED}30`, borderRadius:'5px', background:'transparent', color:RED, cursor:'pointer', fontSize:'8px' }}
                                 onMouseEnter={e=>{e.currentTarget.style.background=RED+'10'}}
@@ -519,13 +541,35 @@ export default function GodModePage() {
         <AccountForm account={editAccount} onClose={() => setEditAccount(null)}
           onSave={async (patch, password) => {
             try {
-              await updateAccount(user?.id||'', editAccount.id, patch)
-              if (password) {
-                const email = patch.contact_email||editAccount.contact_email||`${(editAccount.politician_name||'').toLowerCase().replace(/\s+/g,'.')}.${editAccount.id.slice(-4)}@bharatmonitor.in`
-                await syncCredentialToSupabase(editAccount.id, email, password, { name:editAccount.politician_name||'', role:'user', tier:'elections' })
-                toast.success(`✓ Account + password updated · ${email} / ${password}`, { duration:6000 })
-              } else { toast.success('✓ Account updated') }
-            } catch (e:any) { toast.error(e.message) }
+              // Determine login email — use contact_email if updated, else existing login_email, else generate
+              const loginEmail = (patch.contact_email || (editAccount as any).login_email || editAccount.contact_email ||
+                `${(editAccount.politician_name||'').toLowerCase().replace(/[^a-z0-9]/g,'.')}.${editAccount.id.slice(-4)}@bharatmonitor.in`).toLowerCase().trim()
+              // Use new password if set, else keep existing
+              const loginPwd = password || (editAccount as any).login_password || 'demo@1234'
+              // Inject login fields into patch so updateAccount writes them to DB
+              const fullPatch = {
+                ...patch,
+                login_email:    loginEmail,
+                login_password: loginPwd,
+                login_name:     patch.politician_name || editAccount.politician_name || '',
+                login_role:     'user',
+                login_tier:     'elections',
+              }
+              await updateAccount(user?.id||'', editAccount.id, fullPatch)
+              // Belt-and-suspenders: also call syncCredentialToSupabase directly
+              await syncCredentialToSupabase(editAccount.id, loginEmail, loginPwd, {
+                name: patch.politician_name || editAccount.politician_name || '',
+                role: 'user',
+                tier: 'elections',
+              })
+              toast.success(
+                `✓ Saved · Login: ${loginEmail} / ${loginPwd}`,
+                { duration: 8000, style: { background:'#111827', border:'1px solid rgba(34,211,160,0.4)', color:'#22d3a0', fontFamily:'IBM Plex Mono, monospace', fontSize:'11px' } }
+              )
+            } catch (e:any) {
+              console.error('[GodMode] editAccount save error:', e)
+              toast.error(`Save failed: ${e.message}`)
+            }
             setEditAccount(null); refetch()
           }} />
       )}

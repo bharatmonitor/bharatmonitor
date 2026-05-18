@@ -543,18 +543,58 @@ export function useCheckSingleItem(accountId: string, trackedPoliticianNames: st
 // ─── Unified Twitter sweep (XPOZ + Apify + GetX) ─────────────────────────────
 // Runs all three Twitter sources in parallel and merges results.
 export function useTwitterSweep(accountId: string, keywords: string[]) {
+  const qc = useQueryClient()
   return useQuery({
     queryKey: ['twitter-sweep', accountId, keywords.join(',')],
     queryFn: async (): Promise<FeedItem[]> => {
       if (!accountId || !keywords.length) return []
-      const { sweepAllTwitterSources } = await import('@/lib/twitterSources')
-      return sweepAllTwitterSources(keywords, accountId, {
-        maxPerKeyword: 20,
-        dateRange: 'week',
-      })
+
+      const { SUPABASE_URL, ANON_KEY, SERVICE_KEY } = await import('@/lib/supabase')
+      const authKey = SERVICE_KEY || ANON_KEY
+
+      // ── 1. Call bm-xpoz to get real tweets + instagram (saves to bm_feed)
+      const xpozPromise = fetch(`${SUPABASE_URL}/functions/v1/bm-xpoz`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authKey}`, 'apikey': ANON_KEY },
+        body: JSON.stringify({ accountId, keywords: keywords.slice(0, 5), mode: 'search', maxPerKeyword: 20 }),
+        signal: AbortSignal.timeout(30_000),
+      }).then(r => r.json()).then(d => {
+        console.log('[XPOZ]', d.ok ? `✓ ${d.saved || 0} tweets saved` : `✗ ${d.error}`)
+        if (d.ok && (d.saved || 0) > 0) {
+          setTimeout(() => qc.invalidateQueries({ queryKey: ['feed', accountId] }), 1200)
+        }
+      }).catch(e => console.warn('[XPOZ] failed:', e.message))
+
+      // ── 2. Bluesky direct API — free, no key, runs in parallel
+      const blueskyPromise = fetch(`${SUPABASE_URL}/functions/v1/bm-xpoz`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authKey}`, 'apikey': ANON_KEY },
+        body: JSON.stringify({ accountId, keywords: keywords.slice(0, 4), mode: 'bluesky', maxPerKeyword: 15 }),
+        signal: AbortSignal.timeout(30_000),
+      }).then(r => r.json()).then(d => {
+        console.log('[Bluesky via XPOZ]', d.ok ? `✓ ${d.saved || 0} posts saved` : `✗ ${d.error}`)
+        if (d.ok && (d.saved || 0) > 0) {
+          setTimeout(() => qc.invalidateQueries({ queryKey: ['feed', accountId] }), 1500)
+        }
+      }).catch(e => console.warn('[Bluesky] failed:', e.message))
+
+      // ── 3. Client-side Bluesky as immediate return value (shows instantly)
+      let immediateItems: FeedItem[] = []
+      try {
+        const { fetchBlueskySocial } = await import('@/lib/twitterSources')
+        immediateItems = await fetchBlueskySocial(keywords, accountId, { maxPerKeyword: 12 })
+        console.log('[Bluesky client]', immediateItems.length, 'items')
+      } catch (e: any) {
+        console.warn('[Bluesky client] failed:', e.message)
+      }
+
+      // Wait for XPOZ + server Bluesky to finish
+      await Promise.allSettled([xpozPromise, blueskyPromise])
+
+      return immediateItems
     },
     enabled: !!accountId && keywords.length > 0,
-    staleTime: 10 * 60_000,
+    staleTime: 15 * 60_000,
     refetchInterval: 30 * 60_000,
     retry: 1,
   })

@@ -111,12 +111,12 @@ export function markApiExceeded(api: string, accountId: string) {
 
 export function isApiExceeded(api: string, accountId: string): boolean {
   // God account is never quota-blocked
-  if (accountId === 'god-account' || accountId?.startsWith('god-')) return false
+  if (!accountId || accountId === 'god-account' || accountId?.startsWith('god-')) return false
   const s = loadState(accountId)
   const ts = s.exceeded[api]
   if (!ts) return false
-  // Exceeded flag lasts 23 hours (resets with new day)
-  return (Date.now() - ts) < 23 * 60 * 60 * 1000
+  // Exceeded flag resets after 6 hours (not 23) so quota refreshes faster
+  return (Date.now() - ts) < 6 * 60 * 60 * 1000
 }
 
 export function getDailyStatus(accountId: string): QuotaState & { pct: number } {
@@ -127,4 +127,13 @@ export function getDailyStatus(accountId: string): QuotaState & { pct: number } 
 export function resetQuota(accountId: string) {
   const fresh: QuotaState = { date: TODAY(), searches: 0, items: 0, yt: 0, news: 0, social: 0, exceeded: {} }
   saveState(accountId, fresh)
+  console.log('[Quota] Reset for', accountId)
+}
+
+// Clear just the exceeded flags without resetting counts
+export function clearExceededFlags(accountId: string) {
+  const s = loadState(accountId)
+  s.exceeded = {}
+  saveState(accountId, s)
+  console.log('[Quota] Exceeded flags cleared for', accountId)
 }

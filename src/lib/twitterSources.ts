@@ -14,6 +14,8 @@ import type { FeedItem } from '@/types'
 import { SUPABASE_URL, ANON_KEY, SERVICE_KEY } from '@/lib/supabase'
 
 const XPOZ_KEY  = import.meta.env.VITE_XPOZ_API_KEY  || ''
+// Quota bypass for GetX — don't check quota here, quotaManager handles it
+function isGodAccount(accountId: string) { return !accountId || accountId === 'god-account' || accountId.startsWith('god-') || accountId.startsWith('BM-2026') }
 const APIFY_KEY = import.meta.env.VITE_APIFY_API_KEY  || ''
 // GetX uses Google CSE API (key must be AIzaSy... format)
 const GETX_KEY  = import.meta.env.VITE_GOOGLE_CSE_KEY || ''
@@ -290,8 +292,10 @@ export async function fetchGetXTweets(
   accountId: string,
   options?: { maxPerKeyword?: number; dateRange?: 'day' | 'week' | 'month' }
 ): Promise<FeedItem[]> {
-  if (!GETX_KEY || !CSE_CX) return []
-
+  if (!GETX_KEY || !CSE_CX) {
+    console.log('[GetX] No API key configured — skipping')
+    return []
+  }
   const maxPer    = options?.maxPerKeyword || 15
   const dateParam = options?.dateRange === 'day' ? 'd' : options?.dateRange === 'month' ? 'm' : 'w'
   const now       = nowIso()
@@ -463,13 +467,14 @@ export async function sweepAllTwitterSources(
 ): Promise<FeedItem[]> {
   const max = options?.maxPerKeyword || 20
 
-  // GetX always runs in parallel — start it immediately
-  const getxPromise = fetchGetXTweets(keywords, accountId, {
+  // Run Bluesky + GetX in parallel — both are reliable fallbacks
+  const blueskyPromise = fetchBlueskySocial(keywords, accountId, { maxPerKeyword: max })
+  const getxPromise    = fetchGetXTweets(keywords, accountId, {
     maxPerKeyword: max,
-    dateRange:     options?.dateRange || 'week',
+    dateRange: options?.dateRange || 'week',
   })
 
-  // XPOZ first — primary source
+  // XPOZ — primary source (via edge function, saves directly to bm_feed)
   let primaryItems: FeedItem[] = []
   console.log('[Twitter] Trying XPOZ (primary)...')
   primaryItems = await fetchXpozTweets(keywords, accountId, {
@@ -477,7 +482,7 @@ export async function sweepAllTwitterSources(
     maxPerKeyword: max,
   })
 
-  // Apify fallback — only if XPOZ returned nothing
+  // Apify fallback if XPOZ returned nothing and key is set
   if (primaryItems.length === 0 && APIFY_KEY) {
     console.log('[Twitter] XPOZ returned 0 — falling back to Apify...')
     primaryItems = await fetchApifyTweets(keywords, accountId, {
@@ -485,14 +490,14 @@ export async function sweepAllTwitterSources(
     })
   }
 
-  // Collect GetX results (already running in parallel)
-  const getxItems = await getxPromise
+  // Collect parallel results
+  const [getxItems, blueskyItems] = await Promise.all([getxPromise, blueskyPromise])
 
-  console.log(`[Twitter] primary=${primaryItems.length} getx=${getxItems.length}`)
+  console.log(`[Twitter] primary=${primaryItems.length} getx=${getxItems.length} bluesky=${blueskyItems.length}`)
 
-  // Merge and deduplicate by URL then ID
+  // Merge and deduplicate — Bluesky is always the reliable floor
   const seen = new Set<string>()
-  return [...primaryItems, ...getxItems]
+  return [...primaryItems, ...getxItems, ...blueskyItems]
     .filter(i => {
       const k = i.url || i.id
       if (seen.has(k)) return false

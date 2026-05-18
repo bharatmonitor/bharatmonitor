@@ -52,6 +52,17 @@ export default function DashboardPage() {
   const { data: account, isLoading: accountLoading, error: accountError } = useAccount()
   const accountId = account?.id ?? ''
   const isGodAccount = user?.role === 'god' || accountId === 'god-account'
+
+  // Auto-clear quota blocks on mount so social tracking never gets stuck
+  useEffect(() => {
+    if (!accountId) return
+    import('@/lib/quotaManager').then(({ clearExceededFlags }) => {
+      if (isGodAccount) {
+        clearExceededFlags(accountId)
+        console.log('[Dashboard] ✓ God account — quota blocks cleared')
+      }
+    }).catch(() => {})
+  }, [accountId, isGodAccount])
   const keywords  = account?.keywords ?? []
 
   // ── Data fetches ──────────────────────────────────────────────────────────

@@ -29,7 +29,7 @@ import {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? 'https://ylajerluygbeiqybkgtx.supabase.co'
 const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlsYWplcmx1eWdiZWlxeWJrZ3R4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDUyMDQzOSwiZXhwIjoyMDkwMDk2NDM5fQ.zgKRPK1VrZg-q7DbuwNzxfYL_3ZfqiOU4K6YiSZySSY'
-const XPOZ_KEY   = Deno.env.get('XPOZ_API_KEY') ?? ''
+const XPOZ_KEY   = Deno.env.get('XPOZ_API_KEY') ?? 'K3CdGX6jAgsWA8c87NlWbn2c5SVmKEddiTnYie2oIGhUKhvWRI1jhQeEOOqdwZKCVuyU8d1'
 
 const db = createClient(SUPABASE_URL, SUPABASE_KEY)
 
@@ -258,6 +258,55 @@ Deno.serve(async (req) => {
         console.log(`[XPOZ] Reddit "${kw}": ${posts.length}`)
       }),
     ])
+  }
+
+  // ── MODE: bluesky ──────────────────────────────────────────────────────────
+  // Pure Bluesky API — no XPOZ key needed, completely free
+  if (mode === 'bluesky' || mode === 'all') {
+    const kws = (keywords as string[]).slice(0, 5)
+    await Promise.allSettled(kws.map(async (kw) => {
+      try {
+        const q = encodeURIComponent(kw)
+        const r = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=${q}&limit=20`, {
+          headers: { 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(10_000),
+        })
+        if (!r.ok) return
+        const d = await r.json()
+        const posts = d.posts || []
+        posts.forEach((p: any) => {
+          const text = p.record?.text || ''
+          if (!text || text.length < 10) return
+          const sc = score(text)
+          allRows.push({
+            id:           `bsky-${p.cid || Math.random().toString(36).slice(2)}`,
+            account_id:   accountId,
+            headline:     text.slice(0, 220),
+            title:        text.slice(0, 220),
+            body:         text.slice(0, 1000),
+            source:       `@${p.author?.handle || 'bluesky'}`,
+            source_name:  p.author?.displayName || p.author?.handle || 'Bluesky',
+            source_type:  'twitter',
+            platform:     'twitter',
+            url:          `https://bsky.app/profile/${p.author?.handle}/post/${p.uri?.split('/').pop()}`,
+            bucket:       sc.bucket,
+            sentiment:    sc.sentiment,
+            tone:         sc.tone,
+            geo_tags:     sc.geo_tags,
+            topic_tags:   sc.topic_tags,
+            language:     'english',
+            keyword:      kw,
+            engagement:   (p.likeCount || 0) + (p.repostCount || 0),
+            published_at: p.record?.createdAt || nowIso(),
+            fetched_at:   nowIso(),
+            created_at:   nowIso(),
+          })
+        })
+        console.log(`[XPOZ/Bluesky] "${kw}": ${posts.length} posts`)
+      } catch (e: any) {
+        console.warn(`[XPOZ/Bluesky] "${kw}" failed:`, e.message)
+      }
+    }))
   }
 
   // ── MODE: watchlist ─────────────────────────────────────────────────────────

@@ -176,3 +176,5 @@ export function formatQuotaLine(accountId: string, isGod = false): string {
   const items = (q.newsLimit - q.newsUsed) + (q.youtubeLimit - q.youtubeUsed) + (q.socialLimit - q.socialUsed)
   return `${searches} searches · ${items} items left · resets in ${hoursUntilMidnightIST()}h`
 }
+
+export { resetQuota, clearExceededFlags } from '@/lib/quotaManager'

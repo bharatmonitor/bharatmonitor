@@ -231,7 +231,15 @@ export async function fetchAccount(userId: string): Promise<Account | null> {
 
 export async function fetchAllAccounts(): Promise<Account[]> {
   try {
-    const { data, error } = await supabaseAdmin.from('accounts').select('*').order('created_at', { ascending: false })
+    let data: any = null, error: any = null
+    try {
+      const res = await supabaseAdmin.from('accounts').select('*').order('created_at', { ascending: false })
+      data = res.data; error = res.error
+    } catch {}
+    if (error || !data) {
+      const res = await supabase.from('accounts').select('*').order('created_at', { ascending: false })
+      data = res.data; error = res.error
+    }
     if (error) { console.error('[BM] fetchAllAccounts error:', error.message); return Object.values(DEMO_ACCOUNT_MAP) }
     const supabaseIds = new Set((data || []).map((a: any) => a.id))
     const demoFallbacks = Object.values(DEMO_ACCOUNT_MAP).filter(a => !supabaseIds.has(a.id))
@@ -272,6 +280,7 @@ export async function updateAccount(userId: string, accountId: string, patch: Pa
     'keywords','tracked_politicians','tracked_ministries','tracked_parties',
     'tracked_schemes','languages','geo_scope','alert_prefs',
     'contact_email','contact_phone','email','account_type',
+    'login_email','login_password','login_name','login_role','login_tier',
     'created_at','updated_at',
   ]
   const safe: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -281,8 +290,23 @@ export async function updateAccount(userId: string, accountId: string, patch: Pa
     }
   }
 
-  const { error } = await supabaseAdmin.from('accounts').update(safe).eq('id', accountId)
-  if (error) throw new Error(error.message)
+  // Try admin client first, fall back to anon if service key not available
+  let updateError: any = null
+  try {
+    const { error } = await supabaseAdmin.from('accounts').update(safe).eq('id', accountId)
+    if (!error) { console.log('[updateAccount] updated via admin ✓', accountId); return }
+    updateError = error
+  } catch (e) { updateError = e }
+
+  // Fallback: anon client
+  try {
+    const { error } = await supabase.from('accounts').update(safe).eq('id', accountId)
+    if (!error) { console.log('[updateAccount] updated via anon ✓', accountId); return }
+    throw new Error(error.message)
+  } catch (e: any) {
+    console.error('[updateAccount] both clients failed:', e?.message)
+    throw new Error(e?.message || 'Update failed')
+  }
 }
 
 export async function createAccount(data: Partial<Account>): Promise<Account> {
@@ -294,6 +318,7 @@ export async function createAccount(data: Partial<Account>): Promise<Account> {
     'keywords','tracked_politicians','tracked_ministries','tracked_parties',
     'tracked_schemes','languages','geo_scope','alert_prefs',
     'contact_email','contact_phone','email','account_type',
+    'login_email','login_password','login_name','login_role','login_tier',
     'created_at','updated_at',
   ]
   const safe: Record<string, unknown> = {}
@@ -321,10 +346,37 @@ export async function createAccount(data: Partial<Account>): Promise<Account> {
   }
   safe.created_at = new Date().toISOString()
   safe.updated_at = new Date().toISOString()
-  safe.is_active = true
+  safe.is_active  = true
 
-  const { error, data: created } = await supabaseAdmin
-    .from('accounts').insert(safe).select().single()
+  // ── Auto-generate login credentials if not provided ──────────────────
+  // The DB trigger does this too — but doing it client-side means the
+  // caller sees the credentials immediately in the success toast.
+  if (!safe.login_email) {
+    const base = safe.contact_email as string ||
+      ((safe.politician_name as string || 'user')
+        .toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.{2,}/g, '.').replace(/\.$/, ''))
+    safe.login_email = `${base}.${String(safe.id).slice(-4)}@bharatmonitor.in`
+  }
+  if (!safe.login_password) {
+    safe.login_password = 'demo@1234'
+  }
+  if (!safe.login_name) {
+    safe.login_name = safe.politician_name as string || String(safe.id)
+  }
+  if (!safe.login_role) safe.login_role = 'user'
+  if (!safe.login_tier) safe.login_tier = 'elections'
+
+  // Try admin first, fallback to anon
+  let created: any = null, insertError: any = null
+  try {
+    const res = await supabaseAdmin.from('accounts').insert(safe).select().single()
+    created = res.data; insertError = res.error
+  } catch {}
+  if (insertError || !created) {
+    const res = await supabase.from('accounts').insert(safe).select().single()
+    created = res.data; insertError = res.error
+  }
+  const error = insertError
   if (error) throw new Error(error.message)
   return created as Account
 }
