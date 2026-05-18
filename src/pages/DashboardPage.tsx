@@ -53,16 +53,22 @@ export default function DashboardPage() {
   const accountId = account?.id ?? ''
   const isGodAccount = user?.role === 'god' || accountId === 'god-account'
 
-  // Auto-clear quota blocks on mount so social tracking never gets stuck
-  useEffect(() => {
-    if (!accountId) return
-    import('@/lib/quotaManager').then(({ clearExceededFlags }) => {
-      if (isGodAccount) {
-        clearExceededFlags(accountId)
-        console.log('[Dashboard] ✓ God account — quota blocks cleared')
+  // Clear quota blocks SYNCHRONOUSLY for god — must happen before any fetches
+  if (isGodAccount && accountId) {
+    try {
+      // Direct localStorage manipulation — fastest, no async
+      const key = `bm-quota-${accountId}`
+      const stored = localStorage.getItem(key)
+      if (stored) {
+        const s = JSON.parse(stored)
+        if (s.exceeded && Object.keys(s.exceeded).length > 0) {
+          s.exceeded = {}
+          localStorage.setItem(key, JSON.stringify(s))
+          console.log('[Dashboard] ✓ God account quota blocks cleared synchronously')
+        }
       }
-    }).catch(() => {})
-  }, [accountId, isGodAccount])
+    } catch { /* ignore */ }
+  }
   const keywords  = account?.keywords ?? []
 
   // ── Data fetches ──────────────────────────────────────────────────────────

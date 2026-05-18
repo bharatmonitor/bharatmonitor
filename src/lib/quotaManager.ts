@@ -103,6 +103,10 @@ export function recordItems(accountId: string, type: 'yt' | 'news' | 'social', c
 }
 
 export function markApiExceeded(api: string, accountId: string) {
+  // Never mark god account as exceeded
+  if (!accountId) return
+  const id = accountId.toLowerCase()
+  if (id === 'god-account' || id.startsWith('god-') || id.includes('god')) return
   const s = loadState(accountId)
   s.exceeded[api] = Date.now()
   saveState(accountId, s)
@@ -110,8 +114,10 @@ export function markApiExceeded(api: string, accountId: string) {
 }
 
 export function isApiExceeded(api: string, accountId: string): boolean {
-  // God account is never quota-blocked
-  if (!accountId || accountId === 'god-account' || accountId?.startsWith('god-')) return false
+  // God account is NEVER quota-blocked — check every possible god pattern
+  if (!accountId) return false
+  const id = accountId.toLowerCase()
+  if (id === 'god-account' || id.startsWith('god-') || id.includes('god')) return false
   const s = loadState(accountId)
   const ts = s.exceeded[api]
   if (!ts) return false

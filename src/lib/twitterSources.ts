@@ -467,8 +467,7 @@ export async function sweepAllTwitterSources(
 ): Promise<FeedItem[]> {
   const max = options?.maxPerKeyword || 20
 
-  // Run Bluesky + GetX in parallel — both are reliable fallbacks
-  const blueskyPromise = fetchBlueskySocial(keywords, accountId, { maxPerKeyword: max })
+  // GetX only client-side — Bluesky is CORS-blocked from browser (runs via edge fn)
   const getxPromise    = fetchGetXTweets(keywords, accountId, {
     maxPerKeyword: max,
     dateRange: options?.dateRange || 'week',
@@ -490,14 +489,14 @@ export async function sweepAllTwitterSources(
     })
   }
 
-  // Collect parallel results
-  const [getxItems, blueskyItems] = await Promise.all([getxPromise, blueskyPromise])
+  // Collect GetX results
+  const getxItems = await getxPromise
 
-  console.log(`[Twitter] primary=${primaryItems.length} getx=${getxItems.length} bluesky=${blueskyItems.length}`)
+  console.log(`[Twitter] primary=${primaryItems.length} getx=${getxItems.length}`)
 
-  // Merge and deduplicate — Bluesky is always the reliable floor
+  // Merge and deduplicate
   const seen = new Set<string>()
-  return [...primaryItems, ...getxItems, ...blueskyItems]
+  return [...primaryItems, ...getxItems]
     .filter(i => {
       const k = i.url || i.id
       if (seen.has(k)) return false

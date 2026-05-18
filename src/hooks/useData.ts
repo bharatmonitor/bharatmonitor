@@ -578,20 +578,12 @@ export function useTwitterSweep(accountId: string, keywords: string[]) {
         }
       }).catch(e => console.warn('[Bluesky] failed:', e.message))
 
-      // ── 3. Client-side Bluesky as immediate return value (shows instantly)
-      let immediateItems: FeedItem[] = []
-      try {
-        const { fetchBlueskySocial } = await import('@/lib/twitterSources')
-        immediateItems = await fetchBlueskySocial(keywords, accountId, { maxPerKeyword: 12 })
-        console.log('[Bluesky client]', immediateItems.length, 'items')
-      } catch (e: any) {
-        console.warn('[Bluesky client] failed:', e.message)
-      }
-
-      // Wait for XPOZ + server Bluesky to finish
+      // Wait for XPOZ + Bluesky to finish (both server-side, no CORS issues)
       await Promise.allSettled([xpozPromise, blueskyPromise])
 
-      return immediateItems
+      // Return empty array — items are saved to bm_feed and will appear
+      // when the feed query invalidates (triggered above after save)
+      return []
     },
     enabled: !!accountId && keywords.length > 0,
     staleTime: 15 * 60_000,

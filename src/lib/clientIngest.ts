@@ -97,7 +97,8 @@ function toFeedItem(p: { id: string; platform: string; headline: string; body?: 
 // ─── YouTube: 1 combined search per 6h window ─────────────────────────────────
 export async function fetchYouTubeCombined(keywords: string[], accountId: string): Promise<FeedItem[]> {
   if (!YT_KEY) return []
-  if (isApiExceeded('youtube', accountId)) return []
+  const isGod = !accountId || accountId === 'god-account' || accountId.startsWith('god-')
+  if (!isGod && isApiExceeded('youtube', accountId)) return []
 
   // Return cache if fresh
   const cached = getYTCache(accountId)
@@ -113,7 +114,7 @@ export async function fetchYouTubeCombined(keywords: string[], accountId: string
     const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q)}+india&type=video&regionCode=IN&order=date&maxResults=${max}&key=${YT_KEY}`
     const res = await fetch(url, { signal: AbortSignal.timeout(12000) })
     if (!res.ok) {
-      if (res.status === 403) markApiExceeded('youtube', accountId)
+      if (res.status === 403 && !isGod) markApiExceeded('youtube', accountId)
       console.warn('[YT]', res.status)
       return []
     }
@@ -161,7 +162,8 @@ export async function fetchReddit(keywords: string[], accountId: string): Promis
 // ─── Google CSE News ───────────────────────────────────────────────────────────
 export async function fetchCSENews(keywords: string[], accountId: string): Promise<FeedItem[]> {
   if (!CSE_KEY || !CSE_CX) return []
-  if (isApiExceeded('cse', accountId)) return []
+  const isGod = !accountId || accountId === 'god-account' || accountId.startsWith('god-')
+  if (!isGod && isApiExceeded('cse', accountId)) return []
 
   const remaining = getRemainingItems(accountId)
   if (remaining.news <= 0) return []
@@ -181,7 +183,7 @@ export async function fetchCSENews(keywords: string[], accountId: string): Promi
       url.searchParams.set('gl', 'in')
       const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) })
       if (!res.ok) {
-        if (res.status === 403 || res.status === 429) markApiExceeded('cse', accountId)
+        if ((res.status === 403 || res.status === 429) && !isGod) markApiExceeded('cse', accountId)
         continue
       }
       recordSearch(accountId)
