@@ -253,7 +253,7 @@ async function fetchNitterRSS(kw) {
   for (const instance of NITTER_INSTANCES) {
     try {
       const q = encodeURIComponent(kw + ' india')
-      const url = instance + '/search/rss?f=tweets&q=' + q + '&lang=en'
+      const url = instance + '/search/rss?f=tweets&q=' + q
       const r = await fetch(url, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BharatMonitor/3.0)' },
         signal: AbortSignal.timeout(8000),
@@ -390,7 +390,7 @@ async function fetchTwitterRapid(kw) {
   if (!RAPIDAPI_KEY) return []
   try {
     const q = encodeURIComponent(kw + ' india')
-    const url = `https://twitter135.p.rapidapi.com/v2/Search/?q=${q}&count=20`
+    const url = `https://twitter135.p.rapidapi.com/v2/Search/?q=${q}&count=20&result_type=mixed`
     console.log(`[TwitterRapid] fetching: ${url.slice(0,80)}`)
     const r = await fetch(url, {
       headers: { 'x-rapidapi-host': 'twitter135.p.rapidapi.com', 'x-rapidapi-key': RAPIDAPI_KEY },
@@ -477,7 +477,8 @@ async function fetchInstagramRapid(kw) {
     // Better: use the 'get' endpoint with a political hashtag
     const tag = kw.toLowerCase().replace(/[^a-z0-9]/g, '')
     // Try hashtag endpoint first
-    const url = `https://instagram120.p.rapidapi.com/api/instagram/get?tag=${encodeURIComponent(tag)}`
+    // Instagram120: use the proper hashtag endpoint format
+    const url = `https://instagram120.p.rapidapi.com/api/instagram/hashtag?hashtag=${tag}&maxId=`
     console.log(`[Instagram] fetching tag: ${tag}`)
     const r = await fetch(url, {
       headers: { 'x-rapidapi-host': 'instagram120.p.rapidapi.com', 'x-rapidapi-key': RAPIDAPI_KEY },
@@ -615,20 +616,58 @@ Deno.serve(async (req) => {
 
     console.log(`[bm-ingest-v2] Total raw: ${allRaw.length}`)
 
-    // Dedup by URL
+    // Log platform breakdown before dedup
+    const platformCount = allRaw.reduce((m,i) => { m[i.platform||'unknown']=(m[i.platform||'unknown']||0)+1; return m }, {})
+    console.log('[bm-ingest-v2] Platform breakdown before dedup:', JSON.stringify(platformCount))
+
+    // Sort: social items first (twitter/instagram/facebook/reddit), news last
+    // This ensures social items are processed before the slice limit cuts off news
+    const SOCIAL_PLATFORMS = ['twitter','instagram','facebook','reddit']
+    allRaw.sort((a, b) => {
+      const aIsSocial = SOCIAL_PLATFORMS.includes(a.platform || '')
+      const bIsSocial = SOCIAL_PLATFORMS.includes(b.platform || '')
+      if (aIsSocial && !bIsSocial) return -1
+      if (!aIsSocial && bIsSocial) return 1
+      return 0
+    })
+
+    // Dedup by URL or ID — generate stable ID if missing
     const seen = new Set()
-    const deduped = allRaw.filter(i => { const k = i.link || i.id; if (!k || seen.has(k)) return false; seen.add(k); return true })
-    console.log(`[bm-ingest-v2] After dedup: ${deduped.length}`)
+    const deduped = allRaw.map(i => {
+      // Generate stable ID from content if missing
+      if (!i.id && !i.link) {
+        const hash = (i.title || '').slice(0,30).replace(/[^a-z0-9]/gi,'').toLowerCase()
+        i.id = `gen-${i.platform||'x'}-${hash}-${(i.pubDate||'').slice(0,10)}`
+      }
+      return i
+    }).filter(i => {
+      const k = i.link || i.id
+      if (!k) return false
+      if (seen.has(k)) return false
+      seen.add(k)
+      return true
+    })
+    
+    // Log after dedup
+    const dedupPlatform = deduped.reduce((m,i) => { m[i.platform||'unknown']=(m[i.platform||'unknown']||0)+1; return m }, {})
+    console.log(`[bm-ingest-v2] After dedup: ${deduped.length}`, JSON.stringify(dedupPlatform))
 
     const now = new Date().toISOString()
     const rows = []
-    for (const item of deduped.slice(0, maxPerSource * kws.length)) {
+    // Increase limit to capture social + news (was maxPerSource * kws, now 300 hard cap)
+    for (const item of deduped.slice(0, Math.max(300, maxPerSource * kws.length))) {
       const text = `${item.title||''} ${item.body||''}`
       const kw   = kwScore(text)
       const ai   = GEMINI_KEY ? await geminiSentiment(text) : null
       rows.push({
         national_mode: nationalMode,
-        id:          item.id || `i-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+        id:          item.id || (() => {
+          // Stable ID from content - same item always gets same ID
+          const raw = `${item.source||''}-${(item.title||'').slice(0,40)}-${(item.pubDate||'').slice(0,10)}`
+          let hash = 0
+          for (let i = 0; i < raw.length; i++) { hash = ((hash << 5) - hash) + raw.charCodeAt(i); hash |= 0 }
+          return `${item.platform||'n'}-${Math.abs(hash).toString(36)}-${(item.pubDate||'').slice(5,10).replace('-','')}`
+        })(),
         account_id:  accountId,
         headline:    (item.title||'').slice(0,220),
         title:       (item.title||'').slice(0,220),
@@ -653,11 +692,15 @@ Deno.serve(async (req) => {
     if (!rows.length) return new Response(JSON.stringify({ ok: true, inserted: 0, warning: 'No items from any source', sources: {} }), { headers: CORS })
 
     console.log(`[bm-ingest-v2] Upserting ${rows.length} rows for ${accountId}`)
-    const { error } = await db.from('bm_feed').upsert(rows, { onConflict: 'id', ignoreDuplicates: false })
+    const { error } = await db.from('bm_feed').upsert(rows, { onConflict: 'id', ignoreDuplicates: true })
     if (error) {
       console.error('[bm-ingest-v2] DB error:', error.message, error.code)
       return new Response(JSON.stringify({ ok: false, error: error.message, code: error.code }), { status: 500, headers: CORS })
     }
+    
+    // Log platform breakdown of what was saved
+    const savedPlatforms = rows.reduce((m:any, r:any) => { m[r.platform]=(m[r.platform]||0)+1; return m }, {})
+    console.log('[bm-ingest-v2] Saved platform breakdown:', JSON.stringify(savedPlatforms))
 
     const crisisRows = rows.filter(r=>r.bucket==='red')
     if (crisisRows.length) {
