@@ -33,6 +33,12 @@ export function useFeedItems(accountId: string) {
       if (r1.error) console.error('[useFeedItems] bm_feed error:', r1.error.message, r1.error.code)
       if (r2.error) console.error('[useFeedItems] feed_items error:', r2.error.message, r2.error.code)
       console.log(`[useFeedItems] bm_feed: ${r1.data?.length ?? 0} rows, feed_items: ${r2.data?.length ?? 0} rows for account_id=${accountId}`)
+      // Platform breakdown - critical for debugging
+      if (r1.data?.length) {
+        const platforms: Record<string,number> = {}
+        r1.data.forEach((i:any) => { const p = i.platform || i.source_type || 'unknown'; platforms[p] = (platforms[p]||0)+1 })
+        console.log('[useFeedItems] Platform breakdown:', JSON.stringify(platforms))
+      }
       const now = new Date().toISOString()
       const bm: FeedItem[] = (r1.data || []).map((i: any) => ({
         id: i.id, account_id: i.account_id,

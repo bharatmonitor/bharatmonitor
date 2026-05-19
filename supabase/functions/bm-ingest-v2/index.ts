@@ -390,35 +390,42 @@ async function fetchTwitterRapid(kw) {
   if (!RAPIDAPI_KEY) return []
   try {
     const q = encodeURIComponent(kw + ' india')
-    const r = await fetch(`https://twitter135.p.rapidapi.com/v2/Search/?q=${q}&count=20`, {
-      headers: {
-        'x-rapidapi-host': 'twitter135.p.rapidapi.com',
-        'x-rapidapi-key': RAPIDAPI_KEY,
-      },
-      signal: AbortSignal.timeout(12000),
+    const url = `https://twitter135.p.rapidapi.com/v2/Search/?q=${q}&count=20`
+    console.log(`[TwitterRapid] fetching: ${url.slice(0,80)}`)
+    const r = await fetch(url, {
+      headers: { 'x-rapidapi-host': 'twitter135.p.rapidapi.com', 'x-rapidapi-key': RAPIDAPI_KEY },
+      signal: AbortSignal.timeout(15000),
     })
-    if (!r.ok) { console.warn(`[TwitterRapid] ${kw} HTTP ${r.status}`); return [] }
-    const d = await r.json()
-    const tweets = d?.data?.search_by_raw_query?.search_timeline?.timeline?.instructions
-      ?.flatMap(i => i.entries || [])
-      ?.filter(e => e?.content?.itemContent?.tweet_results?.result)
-      ?.map(e => e.content.itemContent.tweet_results.result) || []
-    console.log(`[TwitterRapid] "${kw}": ${tweets.length} tweets`)
-    return tweets.map(t => {
-      const core = t?.core?.user_results?.result?.legacy || {}
-      const legacy = t?.legacy || {}
+    const body = await r.text()
+    if (!r.ok) {
+      console.warn(`[TwitterRapid] ${kw} HTTP ${r.status}: ${body.slice(0,200)}`)
+      return []
+    }
+    const d = JSON.parse(body)
+    // Twitter135 search response - try multiple response shapes
+    const instructions = d?.data?.search_by_raw_query?.search_timeline?.timeline?.instructions
+      || d?.data?.timeline?.instructions
+      || d?.timeline?.instructions
+      || []
+    const tweets = instructions
+      .flatMap((i:any) => i.entries || i.addEntries?.entries || [])
+      .filter((e:any) => e?.content?.itemContent?.tweet_results?.result || e?.content?.content?.tweet_results?.result)
+      .map((e:any) => e.content?.itemContent?.tweet_results?.result || e.content?.content?.tweet_results?.result)
+    console.log(`[TwitterRapid] "${kw}": ${tweets.length} tweets (raw keys: ${Object.keys(d).join(',')})`)
+    return tweets.slice(0,20).map((t:any) => {
+      const legacy = t?.legacy || t?.tweet?.legacy || {}
+      const user = t?.core?.user_results?.result?.legacy || t?.user?.legacy || {}
       return {
-        id: `twrapid-${legacy.id_str || Math.random().toString(36).slice(2)}`,
-        title: (legacy.full_text || '').slice(0, 220),
-        link: core.screen_name ? `https://twitter.com/${core.screen_name}/status/${legacy.id_str}` : '',
-        source: `@${core.screen_name || 'twitter'}`,
+        id: `twrapid-${legacy.id_str || Math.random().toString(36).slice(2,10)}`,
+        title: (legacy.full_text || legacy.text || '').slice(0, 220),
+        link: user.screen_name && legacy.id_str ? `https://twitter.com/${user.screen_name}/status/${legacy.id_str}` : '',
+        source: `@${user.screen_name || 'twitter'}`,
         pubDate: legacy.created_at ? new Date(legacy.created_at).toISOString() : new Date().toISOString(),
-        platform: 'twitter',
-        body: legacy.full_text || '',
+        platform: 'twitter', body: legacy.full_text || '',
         engagement: (legacy.favorite_count || 0) + (legacy.retweet_count || 0),
       }
-    })
-  } catch(e) { console.warn(`[TwitterRapid] ${kw}:`, e.message); return [] }
+    }).filter((t:any) => t.title)
+  } catch(e:any) { console.warn(`[TwitterRapid] ${kw}:`, e.message); return [] }
 }
 
 // ─── RapidAPI: TwttrAPI — search tweets ──────────────────────────────────────
@@ -426,99 +433,108 @@ async function fetchTwttrAPI(kw) {
   if (!RAPIDAPI_KEY) return []
   try {
     const q = encodeURIComponent(kw + ' india')
-    const r = await fetch(`https://twttrapi.p.rapidapi.com/search-tweets?query=${q}&count=20`, {
-      headers: {
-        'x-rapidapi-host': 'twttrapi.p.rapidapi.com',
-        'x-rapidapi-key': RAPIDAPI_KEY,
-      },
-      signal: AbortSignal.timeout(12000),
+    // TwttrAPI search endpoint (verified from their docs)
+    const url = `https://twttrapi.p.rapidapi.com/search-tweets?query=${q}`
+    console.log(`[TwttrAPI] fetching: ${url.slice(0,80)}`)
+    const r = await fetch(url, {
+      headers: { 'x-rapidapi-host': 'twttrapi.p.rapidapi.com', 'x-rapidapi-key': RAPIDAPI_KEY },
+      signal: AbortSignal.timeout(15000),
     })
-    if (!r.ok) { console.warn(`[TwttrAPI] ${kw} HTTP ${r.status}`); return [] }
-    const d = await r.json()
-    // TwttrAPI returns timeline instructions format
-    const entries = d?.data?.search?.timeline_response?.timeline?.instructions
-      ?.flatMap(i => i.entries || [])
-      ?.filter(e => e?.content?.content?.tweetResult) || []
-    console.log(`[TwttrAPI] "${kw}": ${entries.length} tweets`)
-    return entries.map(e => {
-      const t = e.content.content.tweetResult?.result || {}
-      const user = t.core?.user_result?.result?.legacy || {}
-      const tw = t.legacy || {}
+    const body = await r.text()
+    if (!r.ok) {
+      console.warn(`[TwttrAPI] ${kw} HTTP ${r.status}: ${body.slice(0,200)}`)
+      return []
+    }
+    const d = JSON.parse(body)
+    // Try multiple response shapes
+    const entries = (d?.data?.search_by_raw_query?.search_timeline?.timeline?.instructions
+      || d?.timeline?.instructions || [])
+      .flatMap((i:any) => i.entries || [])
+      .filter((e:any) => e?.content?.itemContent?.tweet_results?.result)
+    const tweets = entries.map((e:any) => e.content.itemContent.tweet_results.result)
+    console.log(`[TwttrAPI] "${kw}": ${tweets.length} tweets (keys: ${Object.keys(d).join(',')})`)
+    return tweets.slice(0,15).map((t:any) => {
+      const legacy = t?.legacy || {}
+      const user = t?.core?.user_results?.result?.legacy || {}
       return {
-        id: `twttr-${tw.id_str || Math.random().toString(36).slice(2)}`,
-        title: (tw.full_text || '').slice(0, 220),
-        link: user.screen_name ? `https://twitter.com/${user.screen_name}/status/${tw.id_str}` : '',
+        id: `twttr-${legacy.id_str || Math.random().toString(36).slice(2,10)}`,
+        title: (legacy.full_text || '').slice(0, 220),
+        link: user.screen_name ? `https://twitter.com/${user.screen_name}/status/${legacy.id_str}` : '',
         source: `@${user.screen_name || 'twitter'}`,
-        pubDate: tw.created_at ? new Date(tw.created_at).toISOString() : new Date().toISOString(),
-        platform: 'twitter',
-        body: tw.full_text || '',
-        engagement: (tw.favorite_count || 0) + (tw.retweet_count || 0),
+        pubDate: legacy.created_at ? new Date(legacy.created_at).toISOString() : new Date().toISOString(),
+        platform: 'twitter', body: legacy.full_text || '',
+        engagement: (legacy.favorite_count || 0) + (legacy.retweet_count || 0),
       }
-    }).filter(t => t.title)
-  } catch(e) { console.warn(`[TwttrAPI] ${kw}:`, e.message); return [] }
+    }).filter((t:any) => t.title)
+  } catch(e:any) { console.warn(`[TwttrAPI] ${kw}:`, e.message); return [] }
 }
 
-// ─── RapidAPI: Instagram120 — keyword search via hashtags ─────────────────────
+// ─── RapidAPI: Instagram — hashtag + profile search ──────────────────────────
 async function fetchInstagramRapid(kw) {
   if (!RAPIDAPI_KEY) return []
   try {
-    // Search by hashtag — convert keyword to hashtag format
-    const tag = kw.replace(/\s+/g, '').toLowerCase()
-    const r = await fetch(`https://instagram120.p.rapidapi.com/api/instagram/hashtag?hashtag=${encodeURIComponent(tag)}`, {
-      method: 'GET',
-      headers: {
-        'x-rapidapi-host': 'instagram120.p.rapidapi.com',
-        'x-rapidapi-key': RAPIDAPI_KEY,
-      },
-      signal: AbortSignal.timeout(12000),
+    // Instagram120: POST /api/instagram/posts needs a username
+    // Better: use the 'get' endpoint with a political hashtag
+    const tag = kw.toLowerCase().replace(/[^a-z0-9]/g, '')
+    // Try hashtag endpoint first
+    const url = `https://instagram120.p.rapidapi.com/api/instagram/get?tag=${encodeURIComponent(tag)}`
+    console.log(`[Instagram] fetching tag: ${tag}`)
+    const r = await fetch(url, {
+      headers: { 'x-rapidapi-host': 'instagram120.p.rapidapi.com', 'x-rapidapi-key': RAPIDAPI_KEY },
+      signal: AbortSignal.timeout(15000),
     })
-    if (!r.ok) { console.warn(`[Instagram] ${kw} HTTP ${r.status}`); return [] }
-    const d = await r.json()
-    const posts = d?.hashtag?.edge_hashtag_to_media?.edges || []
+    const body = await r.text()
+    if (!r.ok) {
+      console.warn(`[Instagram] ${kw} HTTP ${r.status}: ${body.slice(0,200)}`)
+      return []
+    }
+    const d = JSON.parse(body)
+    console.log(`[Instagram] response keys: ${Object.keys(d).join(',')}`)
+    // Try different response shapes
+    const posts = d?.data || d?.posts || d?.items 
+      || d?.hashtag?.edge_hashtag_to_media?.edges?.map((e:any) => e.node)
+      || []
     console.log(`[Instagram] #${tag}: ${posts.length} posts`)
-    return posts.slice(0, 15).map(e => {
-      const n = e.node || {}
-      const caption = n.edge_media_to_caption?.edges?.[0]?.node?.text || ''
-      return {
-        id: `ig-${n.id || Math.random().toString(36).slice(2)}`,
-        title: (caption || `Instagram post #${tag}`).slice(0, 220),
-        link: n.shortcode ? `https://www.instagram.com/p/${n.shortcode}/` : '',
-        source: `#${tag}`,
-        pubDate: n.taken_at_timestamp ? new Date(n.taken_at_timestamp * 1000).toISOString() : new Date().toISOString(),
-        platform: 'instagram',
-        body: caption.slice(0, 500),
-        engagement: (n.edge_liked_by?.count || 0) + (n.edge_media_to_comment?.count || 0),
-      }
-    }).filter(p => p.title)
-  } catch(e) { console.warn(`[Instagram] ${kw}:`, e.message); return [] }
+    return posts.slice(0,15).map((p:any) => ({
+      id: `ig-${p.id || p.shortcode || Math.random().toString(36).slice(2,10)}`,
+      title: ((p.edge_media_to_caption?.edges?.[0]?.node?.text || p.caption || p.text || `#${tag} post`)).slice(0, 220),
+      link: p.shortcode ? `https://www.instagram.com/p/${p.shortcode}/` : (p.link || ''),
+      source: `@${p.owner?.username || p.username || 'instagram'}`,
+      pubDate: p.taken_at_timestamp ? new Date(p.taken_at_timestamp * 1000).toISOString() : new Date().toISOString(),
+      platform: 'instagram', body: (p.caption || '').slice(0, 500),
+      engagement: (p.edge_liked_by?.count || p.like_count || 0),
+    })).filter((p:any) => p.title && p.title !== `#${tag} post`)
+  } catch(e:any) { console.warn(`[Instagram] ${kw}:`, e.message); return [] }
 }
 
 // ─── RapidAPI: Facebook Scraper — public post search ─────────────────────────
 async function fetchFacebookRapid(kw) {
   if (!RAPIDAPI_KEY) return []
   try {
-    const r = await fetch(`https://facebook-scraper3.p.rapidapi.com/search/posts?query=${encodeURIComponent(kw + ' india')}`, {
-      headers: {
-        'x-rapidapi-host': 'facebook-scraper3.p.rapidapi.com',
-        'x-rapidapi-key': RAPIDAPI_KEY,
-      },
-      signal: AbortSignal.timeout(12000),
+    const url = `https://facebook-scraper3.p.rapidapi.com/search/posts?query=${encodeURIComponent(kw + ' india')}`
+    console.log(`[Facebook] fetching: ${url.slice(0,80)}`)
+    const r = await fetch(url, {
+      headers: { 'x-rapidapi-host': 'facebook-scraper3.p.rapidapi.com', 'x-rapidapi-key': RAPIDAPI_KEY },
+      signal: AbortSignal.timeout(15000),
     })
-    if (!r.ok) { console.warn(`[Facebook] ${kw} HTTP ${r.status}`); return [] }
-    const d = await r.json()
-    const posts = d?.data || d?.results || []
-    console.log(`[Facebook] "${kw}": ${posts.length} posts`)
-    return posts.slice(0, 15).map(p => ({
-      id: `fb-${p.post_id || p.id || Math.random().toString(36).slice(2)}`,
-      title: (p.post_text || p.text || p.message || '').slice(0, 220),
-      link: p.post_url || p.url || '',
-      source: p.page_name || p.user_name || 'Facebook',
-      pubDate: p.time ? new Date(p.time * 1000).toISOString() : new Date().toISOString(),
-      platform: 'facebook',
-      body: (p.post_text || p.text || '').slice(0, 500),
-      engagement: (p.likes || 0) + (p.comments || 0) + (p.shares || 0),
-    })).filter(p => p.title)
-  } catch(e) { console.warn(`[Facebook] ${kw}:`, e.message); return [] }
+    const body = await r.text()
+    if (!r.ok) {
+      console.warn(`[Facebook] ${kw} HTTP ${r.status}: ${body.slice(0,200)}`)
+      return []
+    }
+    const d = JSON.parse(body)
+    const posts = d?.data || d?.posts || d?.results || []
+    console.log(`[Facebook] "${kw}": ${posts.length} posts (keys: ${Object.keys(d).join(',')})`)
+    return posts.slice(0,15).map((p:any) => ({
+      id: `fb-${p.post_id || p.id || Math.random().toString(36).slice(2,10)}`,
+      title: (p.post_text || p.message || p.story || p.text || '').slice(0, 220),
+      link: p.post_url || p.url || p.link || '',
+      source: p.page_name || p.page || p.from?.name || 'Facebook',
+      pubDate: p.time ? new Date(p.time * 1000).toISOString() : (p.created_time ? new Date(p.created_time).toISOString() : new Date().toISOString()),
+      platform: 'facebook', body: (p.post_text || p.message || '').slice(0, 500),
+      engagement: (p.likes || p.reactions || 0) + (p.comments || 0),
+    })).filter((p:any) => p.title)
+  } catch(e:any) { console.warn(`[Facebook] ${kw}:`, e.message); return [] }
 }
 
 // ─── Gemini sentiment scoring ─────────────────────────────────────────────────
