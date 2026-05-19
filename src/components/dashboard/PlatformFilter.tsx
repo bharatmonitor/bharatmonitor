@@ -1,12 +1,14 @@
 import { useDashboardStore } from '@/store'
 import type { Platform } from '@/types'
 
-const PLATFORMS: { id: Platform | 'all'; label: string; color: string }[] = [
-  { id: 'all',       label: 'ALL SOURCES',   color: '#8892a4' },
-  { id: 'twitter',   label: 'X / BLUESKY',   color: '#1d9bf0' },
-  { id: 'youtube',   label: 'YOUTUBE',        color: '#ff2020' },
-  { id: 'reddit',    label: 'REDDIT',         color: '#ff4500' },
-  { id: 'news',      label: 'NEWS / RSS',     color: '#8892a4' },
+const PLATFORMS: { id: Platform | 'all'; label: string; color: string; icon?: string }[] = [
+  { id: 'all',       label: 'ALL SOURCES',  color: '#8892a4' },
+  { id: 'twitter',   label: 'X / BLUESKY',  color: '#1d9bf0', icon: '𝕏' },
+  { id: 'instagram', label: 'INSTAGRAM',    color: '#e1306c', icon: '◈' },
+  { id: 'facebook',  label: 'FACEBOOK',     color: '#1877f2', icon: 'f' },
+  { id: 'youtube',   label: 'YOUTUBE',      color: '#ff2020', icon: '▶' },
+  { id: 'reddit',    label: 'REDDIT',       color: '#ff4500', icon: 'r/' },
+  { id: 'news',      label: 'NEWS / RSS',   color: '#8892a4', icon: '◉' },
 ]
 
 export default function PlatformFilter() {
@@ -32,7 +34,9 @@ export default function PlatformFilter() {
                 cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all .15s',
               }}>
               {p.id !== 'all' && (
-                <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                p.icon
+                  ? <span style={{ fontSize: '8px', flexShrink: 0 }}>{p.icon}</span>
+                  : <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: p.color, flexShrink: 0 }} />
               )}
               {p.label}
             </button>

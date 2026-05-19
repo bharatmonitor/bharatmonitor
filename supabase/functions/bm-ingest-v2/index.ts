@@ -241,11 +241,16 @@ async function fetchBluesky(kw) {
 // Nitter is an open-source Twitter frontend. Public instances serve RSS feeds
 // of real tweets without requiring API keys or IP whitelisting.
 // We rotate between instances in case one is down.
+// Verified working Nitter instances (as of May 2026)
+// Source: https://status.d420.de/ (Nitter instance tracker)
 const NITTER_INSTANCES = [
-  'https://nitter.privacydev.net',
   'https://nitter.poast.org',
+  'https://nitter.privacydev.net',
   'https://nitter.1d4.us',
   'https://nitter.lunar.icu',
+  'https://nitter.net',
+  'https://nitter.it',
+  'https://nitter.esmailelbob.xyz',
 ]
 
 async function fetchNitterRSS(kw) {
@@ -543,7 +548,7 @@ async function geminiSentiment(text) {
   if (!GEMINI_KEY) return null
   try {
     const prompt = 'Indian political news analyst. Rate this for a politician war room.\nReply ONLY with valid JSON, no markdown: {"bucket":"red|yellow|blue|silver","sentiment":"positive|negative|neutral","tone":-5}\nred=crisis/attack on politician, yellow=opposition threat/developing, blue=positive achievement, silver=neutral/routine\nDetect SARCASM: ironic praise = bucket yellow sentiment negative.\nNews: ' + text.slice(0, 400)
-    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + GEMINI_KEY, {
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_KEY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -708,6 +713,26 @@ Deno.serve(async (req) => {
     }
 
     const byPlatform = rows.reduce((a,r)=>{ a[r.platform]=(a[r.platform]||0)+1; return a }, {})
+    // ── Trigger alerts for crisis items ────────────────────────────────────────
+    if (crisisRows.length > 0) {
+      try {
+        // Fire and forget — don't wait for alerts, don't block ingest response
+        fetch(`${SUPABASE_URL}/functions/v1/bm-alerts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'apikey': SUPABASE_KEY,
+          },
+          body: JSON.stringify({
+            accountId,
+            items: crisisRows.slice(0, 5).map(r => ({ headline: r.headline, source: r.source, published_at: r.published_at, url: r.url })),
+            bucket: 'red',
+          }),
+        }).then(r => r.json()).then(d => console.log('[bm-ingest-v2] Alerts triggered:', JSON.stringify(d.sent))).catch(e => console.warn('[bm-ingest-v2] Alert trigger error:', e.message))
+      } catch (e: any) { console.warn('[bm-ingest-v2] Alert trigger failed:', e.message) }
+    }
+
     console.log(`[bm-ingest-v2] DONE inserted=${rows.length} crisis=${crisisRows.length} ai=${!!GEMINI_KEY}`, byPlatform)
     return new Response(JSON.stringify({ ok:true, inserted:rows.length, crisis:crisisRows.length, ai_used:!!GEMINI_KEY, sources:byPlatform }), { headers: CORS })
 
