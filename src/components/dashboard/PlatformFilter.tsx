@@ -2,14 +2,11 @@ import { useDashboardStore } from '@/store'
 import type { Platform } from '@/types'
 
 const PLATFORMS: { id: Platform | 'all'; label: string; color: string }[] = [
-  { id: 'all',       label: 'ALL SOURCES',  color: '#8892a4' },
-  { id: 'twitter',   label: 'X / TWITTER',  color: '#1d9bf0' },
-  { id: 'instagram', label: 'INSTAGRAM',    color: '#e1306c' },
-  { id: 'facebook',  label: 'FACEBOOK',     color: '#1877f2' },
-  { id: 'whatsapp',  label: 'WHATSAPP',     color: '#25d366' },
-  { id: 'youtube',   label: 'YOUTUBE',      color: '#ff2020' },
-  { id: 'reddit',    label: 'REDDIT',       color: '#ff4500' },
-  { id: 'news',      label: 'NEWS / RSS',   color: '#8892a4' },
+  { id: 'all',       label: 'ALL SOURCES',   color: '#8892a4' },
+  { id: 'twitter',   label: 'X / BLUESKY',   color: '#1d9bf0' },
+  { id: 'youtube',   label: 'YOUTUBE',        color: '#ff2020' },
+  { id: 'reddit',    label: 'REDDIT',         color: '#ff4500' },
+  { id: 'news',      label: 'NEWS / RSS',     color: '#8892a4' },
 ]
 
 export default function PlatformFilter() {

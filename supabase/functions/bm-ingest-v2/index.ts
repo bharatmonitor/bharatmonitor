@@ -5,6 +5,7 @@ const SUPABASE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? 'eyJhbGciOiJI
 const GEMINI_KEY    = Deno.env.get('GEMINI_API_KEY') ?? ''
 const YT_KEY        = Deno.env.get('YT_API_KEY') ?? ''
 const NEWSDATA_KEY  = Deno.env.get('NEWSDATA_API_KEY') ?? ''
+const RAPIDAPI_KEY  = Deno.env.get('RAPIDAPI_KEY') ?? '0ac9d52ebbmsh9f434c4cfd7b7eep189ae9jsn6baf9d097761'
 
 const db = createClient(SUPABASE_URL, SUPABASE_KEY)
 const CORS = {
@@ -305,15 +306,219 @@ async function fetchBlueskyUser(handle) {
 }
 
 // ─── Source 6: Reddit ─────────────────────────────────────────────────────────
-async function fetchReddit(kw) {
+// ─── Source: Twitter/X API v2 (Free Basic tier - 500K tweets/month) ────────────
+// Get Bearer token FREE at: developer.twitter.com → Create App → Keys & Tokens
+// Copy "Bearer Token" → supabase secrets set TWITTER_BEARER_TOKEN=xxx
+const TWITTER_BEARER = Deno.env.get('TWITTER_BEARER_TOKEN') ?? ''
+
+async function fetchTwitterV2(kw) {
+  if (!TWITTER_BEARER) return []
   try {
-    const r = await fetch(`https://www.reddit.com/r/india+IndianPolitics+IndiaSpeaks+worldnews/search.json?q=${encodeURIComponent(kw)}&sort=new&restrict_sr=on&limit=10&raw_json=1`, { headers:{ 'User-Agent':'BharatMonitor/3.0' }, signal: AbortSignal.timeout(10000) })
-    if (!r.ok) { console.warn(`[Reddit] ${kw} HTTP ${r.status}`); return [] }
+    const query = encodeURIComponent(`(${kw} india) -is:retweet lang:en`)
+    const url = `https://api.twitter.com/2/tweets/search/recent?query=${query}&max_results=20&tweet.fields=created_at,author_id,public_metrics,lang&expansions=author_id&user.fields=username,name`
+    const r = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${TWITTER_BEARER}` },
+      signal: AbortSignal.timeout(12000),
+    })
+    if (!r.ok) { console.warn(`[TwitterV2] ${kw} HTTP ${r.status}`); return [] }
     const d = await r.json()
-    const items = (d?.data?.children||[])
-    console.log(`[Reddit] ${kw}: ${items.length} items`)
-    return items.map(c => ({ id:`reddit-${c.data.id}`, title:c.data.title, link:`https://reddit.com${c.data.permalink}`, source:`r/${c.data.subreddit}`, pubDate:new Date(c.data.created_utc*1000).toISOString(), platform:'reddit', body:(c.data.selftext||'').slice(0,300) }))
-  } catch(e) { console.warn(`[Reddit] ${kw} error:`, e.message); return [] }
+    const tweets = d?.data || []
+    const users = (d?.includes?.users || []).reduce((m, u) => ({ ...m, [u.id]: u }), {})
+    console.log(`[TwitterV2] ${kw}: ${tweets.length} tweets`)
+    return tweets.map(t => {
+      const user = users[t.author_id] || {}
+      return {
+        id: `tw2-${t.id}`,
+        title: t.text?.slice(0, 220) || '',
+        link: `https://twitter.com/${user.username}/status/${t.id}`,
+        source: `@${user.username || 'twitter'}`,
+        pubDate: t.created_at || new Date().toISOString(),
+        platform: 'twitter',
+        body: t.text || '',
+        engagement: (t.public_metrics?.like_count || 0) + (t.public_metrics?.retweet_count || 0),
+      }
+    })
+  } catch(e) { console.warn(`[TwitterV2] ${kw}:`, e.message); return [] }
+}
+
+async function fetchReddit(kw) {
+  // Try JSON API first, fall back to RSS (RSS more reliable from Supabase IPs)
+  try {
+    // Method 1: JSON API
+    const r = await fetch(
+      `https://www.reddit.com/search.json?q=${encodeURIComponent(kw + ' india')}&sort=new&limit=10&raw_json=1&t=week`,
+      { headers:{ 'User-Agent':'Mozilla/5.0 BharatMonitor/3.0' }, signal: AbortSignal.timeout(8000) }
+    )
+    if (r.ok) {
+      const d = await r.json()
+      const items = d?.data?.children || []
+      if (items.length > 0) {
+        console.log(`[Reddit JSON] ${kw}: ${items.length} items`)
+        return items.map(c => ({
+          id: `reddit-${c.data.id}`,
+          title: c.data.title,
+          link: `https://reddit.com${c.data.permalink}`,
+          source: `r/${c.data.subreddit}`,
+          pubDate: new Date(c.data.created_utc * 1000).toISOString(),
+          platform: 'reddit',
+          body: (c.data.selftext || c.data.title || '').slice(0, 300)
+        }))
+      }
+    }
+  } catch(e) { console.warn(`[Reddit JSON] ${kw}:`, e.message) }
+
+  // Method 2: RSS fallback (plain XML, no auth, works from more IPs)
+  try {
+    const q = encodeURIComponent(kw + ' india')
+    const r = await fetch(
+      `https://www.reddit.com/search.rss?q=${q}&sort=new&t=week`,
+      { headers:{ 'User-Agent':'Mozilla/5.0 BharatMonitor/3.0' }, signal: AbortSignal.timeout(8000) }
+    )
+    if (!r.ok) { console.warn(`[Reddit RSS] ${kw} HTTP ${r.status}`); return [] }
+    const xml = await r.text()
+    const items = parseRSS(xml)
+    console.log(`[Reddit RSS] ${kw}: ${items.length} items`)
+    return items.map(i => ({ ...i, platform: 'reddit',
+      id: 'reddit-rss-' + (i.link || '').split('/').filter(Boolean).pop() + '-' + kw.slice(0,4).replace(/\s/g,'')
+    }))
+  } catch(e) { console.warn(`[Reddit RSS] ${kw}:`, e.message); return [] }
+}
+
+
+// ─── RapidAPI: Twitter135 — keyword search ────────────────────────────────────
+async function fetchTwitterRapid(kw) {
+  if (!RAPIDAPI_KEY) return []
+  try {
+    const q = encodeURIComponent(kw + ' india')
+    const r = await fetch(`https://twitter135.p.rapidapi.com/v2/Search/?q=${q}&count=20`, {
+      headers: {
+        'x-rapidapi-host': 'twitter135.p.rapidapi.com',
+        'x-rapidapi-key': RAPIDAPI_KEY,
+      },
+      signal: AbortSignal.timeout(12000),
+    })
+    if (!r.ok) { console.warn(`[TwitterRapid] ${kw} HTTP ${r.status}`); return [] }
+    const d = await r.json()
+    const tweets = d?.data?.search_by_raw_query?.search_timeline?.timeline?.instructions
+      ?.flatMap(i => i.entries || [])
+      ?.filter(e => e?.content?.itemContent?.tweet_results?.result)
+      ?.map(e => e.content.itemContent.tweet_results.result) || []
+    console.log(`[TwitterRapid] "${kw}": ${tweets.length} tweets`)
+    return tweets.map(t => {
+      const core = t?.core?.user_results?.result?.legacy || {}
+      const legacy = t?.legacy || {}
+      return {
+        id: `twrapid-${legacy.id_str || Math.random().toString(36).slice(2)}`,
+        title: (legacy.full_text || '').slice(0, 220),
+        link: core.screen_name ? `https://twitter.com/${core.screen_name}/status/${legacy.id_str}` : '',
+        source: `@${core.screen_name || 'twitter'}`,
+        pubDate: legacy.created_at ? new Date(legacy.created_at).toISOString() : new Date().toISOString(),
+        platform: 'twitter',
+        body: legacy.full_text || '',
+        engagement: (legacy.favorite_count || 0) + (legacy.retweet_count || 0),
+      }
+    })
+  } catch(e) { console.warn(`[TwitterRapid] ${kw}:`, e.message); return [] }
+}
+
+// ─── RapidAPI: TwttrAPI — search tweets ──────────────────────────────────────
+async function fetchTwttrAPI(kw) {
+  if (!RAPIDAPI_KEY) return []
+  try {
+    const q = encodeURIComponent(kw + ' india')
+    const r = await fetch(`https://twttrapi.p.rapidapi.com/search-tweets?query=${q}&count=20`, {
+      headers: {
+        'x-rapidapi-host': 'twttrapi.p.rapidapi.com',
+        'x-rapidapi-key': RAPIDAPI_KEY,
+      },
+      signal: AbortSignal.timeout(12000),
+    })
+    if (!r.ok) { console.warn(`[TwttrAPI] ${kw} HTTP ${r.status}`); return [] }
+    const d = await r.json()
+    // TwttrAPI returns timeline instructions format
+    const entries = d?.data?.search?.timeline_response?.timeline?.instructions
+      ?.flatMap(i => i.entries || [])
+      ?.filter(e => e?.content?.content?.tweetResult) || []
+    console.log(`[TwttrAPI] "${kw}": ${entries.length} tweets`)
+    return entries.map(e => {
+      const t = e.content.content.tweetResult?.result || {}
+      const user = t.core?.user_result?.result?.legacy || {}
+      const tw = t.legacy || {}
+      return {
+        id: `twttr-${tw.id_str || Math.random().toString(36).slice(2)}`,
+        title: (tw.full_text || '').slice(0, 220),
+        link: user.screen_name ? `https://twitter.com/${user.screen_name}/status/${tw.id_str}` : '',
+        source: `@${user.screen_name || 'twitter'}`,
+        pubDate: tw.created_at ? new Date(tw.created_at).toISOString() : new Date().toISOString(),
+        platform: 'twitter',
+        body: tw.full_text || '',
+        engagement: (tw.favorite_count || 0) + (tw.retweet_count || 0),
+      }
+    }).filter(t => t.title)
+  } catch(e) { console.warn(`[TwttrAPI] ${kw}:`, e.message); return [] }
+}
+
+// ─── RapidAPI: Instagram120 — keyword search via hashtags ─────────────────────
+async function fetchInstagramRapid(kw) {
+  if (!RAPIDAPI_KEY) return []
+  try {
+    // Search by hashtag — convert keyword to hashtag format
+    const tag = kw.replace(/\s+/g, '').toLowerCase()
+    const r = await fetch(`https://instagram120.p.rapidapi.com/api/instagram/hashtag?hashtag=${encodeURIComponent(tag)}`, {
+      method: 'GET',
+      headers: {
+        'x-rapidapi-host': 'instagram120.p.rapidapi.com',
+        'x-rapidapi-key': RAPIDAPI_KEY,
+      },
+      signal: AbortSignal.timeout(12000),
+    })
+    if (!r.ok) { console.warn(`[Instagram] ${kw} HTTP ${r.status}`); return [] }
+    const d = await r.json()
+    const posts = d?.hashtag?.edge_hashtag_to_media?.edges || []
+    console.log(`[Instagram] #${tag}: ${posts.length} posts`)
+    return posts.slice(0, 15).map(e => {
+      const n = e.node || {}
+      const caption = n.edge_media_to_caption?.edges?.[0]?.node?.text || ''
+      return {
+        id: `ig-${n.id || Math.random().toString(36).slice(2)}`,
+        title: (caption || `Instagram post #${tag}`).slice(0, 220),
+        link: n.shortcode ? `https://www.instagram.com/p/${n.shortcode}/` : '',
+        source: `#${tag}`,
+        pubDate: n.taken_at_timestamp ? new Date(n.taken_at_timestamp * 1000).toISOString() : new Date().toISOString(),
+        platform: 'instagram',
+        body: caption.slice(0, 500),
+        engagement: (n.edge_liked_by?.count || 0) + (n.edge_media_to_comment?.count || 0),
+      }
+    }).filter(p => p.title)
+  } catch(e) { console.warn(`[Instagram] ${kw}:`, e.message); return [] }
+}
+
+// ─── RapidAPI: Facebook Scraper — public post search ─────────────────────────
+async function fetchFacebookRapid(kw) {
+  if (!RAPIDAPI_KEY) return []
+  try {
+    const r = await fetch(`https://facebook-scraper3.p.rapidapi.com/search/posts?query=${encodeURIComponent(kw + ' india')}`, {
+      headers: {
+        'x-rapidapi-host': 'facebook-scraper3.p.rapidapi.com',
+        'x-rapidapi-key': RAPIDAPI_KEY,
+      },
+      signal: AbortSignal.timeout(12000),
+    })
+    if (!r.ok) { console.warn(`[Facebook] ${kw} HTTP ${r.status}`); return [] }
+    const d = await r.json()
+    const posts = d?.data || d?.results || []
+    console.log(`[Facebook] "${kw}": ${posts.length} posts`)
+    return posts.slice(0, 15).map(p => ({
+      id: `fb-${p.post_id || p.id || Math.random().toString(36).slice(2)}`,
+      title: (p.post_text || p.text || p.message || '').slice(0, 220),
+      link: p.post_url || p.url || '',
+      source: p.page_name || p.user_name || 'Facebook',
+      pubDate: p.time ? new Date(p.time * 1000).toISOString() : new Date().toISOString(),
+      platform: 'facebook',
+      body: (p.post_text || p.text || '').slice(0, 500),
+      engagement: (p.likes || 0) + (p.comments || 0) + (p.shares || 0),
+    })).filter(p => p.title)
+  } catch(e) { console.warn(`[Facebook] ${kw}:`, e.message); return [] }
 }
 
 // ─── Gemini sentiment scoring ─────────────────────────────────────────────────
@@ -376,8 +581,18 @@ Deno.serve(async (req) => {
       ...kws.slice(0,4).map(kw => fetchGDELTTwitter(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // Bluesky - completely free, open API, no key needed
       ...kws.slice(0,5).map(kw => fetchBluesky(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
+      // RapidAPI: Twitter135 search (primary Twitter source)
+      ...kws.slice(0,4).map(kw => fetchTwitterRapid(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
+      // RapidAPI: TwttrAPI (backup Twitter source, different data format)
+      ...kws.slice(0,3).map(kw => fetchTwttrAPI(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
+      // RapidAPI: Instagram hashtag search
+      ...kws.slice(0,3).map(kw => fetchInstagramRapid(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
+      // RapidAPI: Facebook public post search
+      ...kws.slice(0,3).map(kw => fetchFacebookRapid(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
+      // Twitter API v2 (if TWITTER_BEARER_TOKEN is set - extra source)
+      ...kws.slice(0,3).map(kw => fetchTwitterV2(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // Nitter RSS - real X/Twitter content, free, no key, no IP restrictions
-      ...kws.slice(0,4).map(kw => fetchNitterRSS(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
+      ...kws.slice(0,3).map(kw => fetchNitterRSS(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // Bluesky watchlist handles (from body.watchlistHandles)
       ...(body.watchlistHandles||[]).filter(h=>h.includes('bsky')||h.includes('bsky.social')).slice(0,10).map(h => fetchBlueskyUser(h).then(items => allRaw.push(...items.map(i=>({...i,keyword:kws[0]||''})))))
     ])
