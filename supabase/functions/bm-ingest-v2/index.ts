@@ -6,6 +6,7 @@ const GEMINI_KEY    = Deno.env.get('GEMINI_API_KEY') ?? ''
 const YT_KEY        = Deno.env.get('YT_API_KEY') ?? ''
 const NEWSDATA_KEY  = Deno.env.get('NEWSDATA_API_KEY') ?? ''
 const RAPIDAPI_KEY  = Deno.env.get('RAPIDAPI_KEY') ?? '0ac9d52ebbmsh9f434c4cfd7b7eep189ae9jsn6baf9d097761'
+const TWITTER_BEARER = Deno.env.get('TWITTER_BEARER_TOKEN') ?? 'AAAAAAAAAAAAAAAAAAAAAMba9gEAAAAAObRzF4TSWtNT+UOyRUwejJGrJzE=L7Bpuxu6gHsYiOPF89sLw06Nsk0j01kPxHmX37ty2IjPgyMMfU'
 
 const db = createClient(SUPABASE_URL, SUPABASE_KEY)
 const CORS = {
@@ -237,113 +238,80 @@ async function fetchBluesky(kw) {
   } catch(e) { console.warn('[Bluesky] ' + kw + ' error:', e.message); return [] }
 }
 
-// ─── Source 6d: Nitter RSS (X/Twitter content, free, no auth needed) ──────────
-// Nitter is an open-source Twitter frontend. Public instances serve RSS feeds
-// of real tweets without requiring API keys or IP whitelisting.
-// We rotate between instances in case one is down.
-// Verified working Nitter instances (as of May 2026)
-// Source: https://status.d420.de/ (Nitter instance tracker)
-const NITTER_INSTANCES = [
-  'https://nitter.poast.org',
-  'https://nitter.privacydev.net',
-  'https://nitter.1d4.us',
-  'https://nitter.lunar.icu',
-  'https://nitter.net',
-  'https://nitter.it',
-  'https://nitter.esmailelbob.xyz',
-]
+// Nitter is discontinued (legal shutdown May 2026)
+// Twitter data now comes from: Twitter API v2 + RapidAPI scrapers + Bluesky
 
-async function fetchNitterRSS(kw) {
-  // Try each instance until one works
-  for (const instance of NITTER_INSTANCES) {
-    try {
-      const q = encodeURIComponent(kw + ' india')
-      const url = instance + '/search/rss?f=tweets&q=' + q
-      const r = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BharatMonitor/3.0)' },
-        signal: AbortSignal.timeout(8000),
-      })
-      if (!r.ok) continue
-      const xml = await r.text()
-      if (!xml.includes('<item>')) continue
 
-      const items = parseRSS(xml)
-      console.log('[Nitter] ' + instance.split('/')[2] + ' "' + kw + '": ' + items.length + ' tweets')
-      return items.map(i => ({
-        ...i,
-        platform: 'twitter',
-        // Extract handle from link: https://nitter.xxx/handle/status/ID
-        source: '@' + (i.link || '').split('/').filter(Boolean)[1] || 'twitter',
-        id: 'nitter-' + (i.link || '').split('/').pop() + '-' + kw.slice(0,4).replace(/\s/g,''),
-      }))
-    } catch(e) {
-      console.warn('[Nitter] ' + instance + ' failed:', e.message)
-    }
-  }
-  console.warn('[Nitter] All instances failed for: ' + kw)
-  return []
-}
 
-// Fetch Bluesky user timeline for watchlist handles
-async function fetchBlueskyUser(handle) {
-  try {
-    const cleanHandle = handle.replace('@','').replace('bsky.app/profile/','')
-    const r = await fetch('https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=' + cleanHandle + '&limit=20', {
-      headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!r.ok) return []
-    const d = await r.json()
-    return (d?.feed || []).map(item => {
-      const p = item.post
-      return {
-        id: 'bsky-u-' + (p.cid||'').slice(-16),
-        title: (p.record?.text||'').slice(0,220),
-        link: 'https://bsky.app/profile/' + (p.author?.handle||cleanHandle) + '/post/' + (p.uri||'').split('/').pop(),
-        source: '@' + (p.author?.handle || cleanHandle),
-        pubDate: p.record?.createdAt || new Date().toISOString(),
-        platform: 'twitter',
-        body: p.record?.text || '',
-        engagement: (p.likeCount||0)+(p.repostCount||0)+(p.replyCount||0),
-      }
-    })
-  } catch { return [] }
-}
-
-// ─── Source 6: Reddit ─────────────────────────────────────────────────────────
-// ─── Source: Twitter/X API v2 (Free Basic tier - 500K tweets/month) ────────────
-// Get Bearer token FREE at: developer.twitter.com → Create App → Keys & Tokens
-// Copy "Bearer Token" → supabase secrets set TWITTER_BEARER_TOKEN=xxx
-const TWITTER_BEARER = Deno.env.get('TWITTER_BEARER_TOKEN') ?? ''
-
+// ─── Twitter API v2 (Official - Free Basic: 500K tweets/month) ───────────────
+// Bearer Token: no OAuth needed, no IP restrictions, works from any server
 async function fetchTwitterV2(kw) {
   if (!TWITTER_BEARER) return []
   try {
-    const query = encodeURIComponent(`(${kw} india) -is:retweet lang:en`)
+    const query = encodeURIComponent(`${kw} india -is:retweet`)
     const url = `https://api.twitter.com/2/tweets/search/recent?query=${query}&max_results=20&tweet.fields=created_at,author_id,public_metrics,lang&expansions=author_id&user.fields=username,name`
     const r = await fetch(url, {
       headers: { 'Authorization': `Bearer ${TWITTER_BEARER}` },
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(15000),
     })
-    if (!r.ok) { console.warn(`[TwitterV2] ${kw} HTTP ${r.status}`); return [] }
-    const d = await r.json()
+    const body = await r.text()
+    if (!r.ok) {
+      console.warn(`[TwitterV2] ${kw} HTTP ${r.status}: ${body.slice(0,200)}`)
+      return []
+    }
+    const d = JSON.parse(body)
     const tweets = d?.data || []
-    const users = (d?.includes?.users || []).reduce((m, u) => ({ ...m, [u.id]: u }), {})
-    console.log(`[TwitterV2] ${kw}: ${tweets.length} tweets`)
-    return tweets.map(t => {
+    const users  = (d?.includes?.users || []).reduce((m: any, u: any) => ({ ...m, [u.id]: u }), {})
+    console.log(`[TwitterV2] "${kw}": ${tweets.length} tweets`)
+    return tweets.map((t: any) => {
       const user = users[t.author_id] || {}
       return {
-        id: `tw2-${t.id}`,
-        title: t.text?.slice(0, 220) || '',
-        link: `https://twitter.com/${user.username}/status/${t.id}`,
-        source: `@${user.username || 'twitter'}`,
-        pubDate: t.created_at || new Date().toISOString(),
-        platform: 'twitter',
-        body: t.text || '',
-        engagement: (t.public_metrics?.like_count || 0) + (t.public_metrics?.retweet_count || 0),
+        id:          `twv2-${t.id}`,
+        title:       (t.text || '').slice(0, 220),
+        link:        user.username ? `https://twitter.com/${user.username}/status/${t.id}` : '',
+        source:      `@${user.username || 'twitter'}`,
+        pubDate:     t.created_at || new Date().toISOString(),
+        platform:    'twitter',
+        body:        t.text || '',
+        engagement:  (t.public_metrics?.like_count || 0) + (t.public_metrics?.retweet_count || 0),
       }
-    })
-  } catch(e) { console.warn(`[TwitterV2] ${kw}:`, e.message); return [] }
+    }).filter((t: any) => t.title)
+  } catch(e: any) { console.warn(`[TwitterV2] ${kw}:`, e.message); return [] }
+}
+
+// ─── Google CSE Twitter search (searches Google for Twitter content) ──────────
+// Uses existing Google CSE key. Searches site:twitter.com OR site:x.com
+// Returns tweet URLs + snippets from Google's index
+const CSE_KEY = Deno.env.get('GOOGLE_CSE_KEY') ?? ''
+const CSE_CX  = Deno.env.get('GOOGLE_CSE_CX')  ?? ''
+
+async function fetchGoogleTwitter(kw) {
+  if (!CSE_KEY || !CSE_CX) return []
+  try {
+    const q = encodeURIComponent(`${kw} india (site:twitter.com OR site:x.com)`)
+    const url = `https://www.googleapis.com/customsearch/v1?key=${CSE_KEY}&cx=${CSE_CX}&q=${q}&num=10&dateRestrict=d7`
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) })
+    if (!r.ok) { console.warn(`[GoogleTwitter] ${kw} HTTP ${r.status}`); return [] }
+    const d = await r.json()
+    const items = d?.items || []
+    console.log(`[GoogleTwitter] "${kw}": ${items.length} tweet URLs from Google`)
+    return items.map((item: any) => {
+      // Extract handle from URL: twitter.com/handle/status/ID
+      const urlParts = (item.link || '').replace('https://x.com/', '').replace('https://twitter.com/', '').split('/')
+      const handle = urlParts[0] || 'twitter'
+      const tweetId = urlParts[2] || Math.random().toString(36).slice(2)
+      return {
+        id: `gcse-tw-${tweetId}`,
+        title: (item.snippet || item.title || '').slice(0, 220),
+        link: item.link || '',
+        source: `@${handle}`,
+        pubDate: new Date().toISOString(),
+        platform: 'twitter',
+        body: item.snippet || '',
+        engagement: 0,
+      }
+    }).filter((t: any) => t.title)
+  } catch(e: any) { console.warn(`[GoogleTwitter] ${kw}:`, e.message); return [] }
 }
 
 async function fetchReddit(kw) {
@@ -395,15 +363,20 @@ async function fetchTwitterRapid(kw) {
   if (!RAPIDAPI_KEY) return []
   try {
     const q = encodeURIComponent(kw + ' india')
-    const url = `https://twitter135.p.rapidapi.com/v2/Search/?q=${q}&count=20&result_type=mixed`
+    // Twitter135: try search endpoint
+    const url = `https://twitter135.p.rapidapi.com/v2/Search/?q=${q}&count=20`
     console.log(`[TwitterRapid] fetching: ${url.slice(0,80)}`)
     const r = await fetch(url, {
-      headers: { 'x-rapidapi-host': 'twitter135.p.rapidapi.com', 'x-rapidapi-key': RAPIDAPI_KEY },
+      headers: {
+        'x-rapidapi-host': 'twitter135.p.rapidapi.com',
+        'x-rapidapi-key': RAPIDAPI_KEY,
+        'Content-Type': 'application/json',
+      },
       signal: AbortSignal.timeout(15000),
     })
     const body = await r.text()
     if (!r.ok) {
-      console.warn(`[TwitterRapid] ${kw} HTTP ${r.status}: ${body.slice(0,200)}`)
+      console.warn(`[TwitterRapid] ${kw} HTTP ${r.status}: ${body.slice(0,300)}`)
       return []
     }
     const d = JSON.parse(body)
@@ -603,6 +576,8 @@ Deno.serve(async (req) => {
       ...kws.slice(0,4).map(kw => fetchGDELTTwitter(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // Bluesky - completely free, open API, no key needed
       ...kws.slice(0,5).map(kw => fetchBluesky(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
+      // Google CSE Twitter (searches Google for twitter.com content - always works)
+      ...kws.slice(0,4).map(kw => fetchGoogleTwitter(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // RapidAPI: Twitter135 search (primary Twitter source)
       ...kws.slice(0,4).map(kw => fetchTwitterRapid(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // RapidAPI: TwttrAPI (backup Twitter source, different data format)
@@ -613,8 +588,7 @@ Deno.serve(async (req) => {
       ...kws.slice(0,3).map(kw => fetchFacebookRapid(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // Twitter API v2 (if TWITTER_BEARER_TOKEN is set - extra source)
       ...kws.slice(0,3).map(kw => fetchTwitterV2(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
-      // Nitter RSS - real X/Twitter content, free, no key, no IP restrictions
-      ...kws.slice(0,3).map(kw => fetchNitterRSS(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
+      // Nitter discontinued May 2026 — removed
       // Bluesky watchlist handles (from body.watchlistHandles)
       ...(body.watchlistHandles||[]).filter(h=>h.includes('bsky')||h.includes('bsky.social')).slice(0,10).map(h => fetchBlueskyUser(h).then(items => allRaw.push(...items.map(i=>({...i,keyword:kws[0]||''})))))
     ])
