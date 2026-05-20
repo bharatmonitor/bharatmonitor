@@ -248,7 +248,7 @@ async function fetchBluesky(kw) {
 async function fetchTwitterV2(kw) {
   if (!TWITTER_BEARER) return []
   try {
-    const query = encodeURIComponent(`${kw} india -is:retweet`)
+    const query = encodeURIComponent(`${kw} india`)
     const url = `https://api.twitter.com/2/tweets/search/recent?query=${query}&max_results=20&tweet.fields=created_at,author_id,public_metrics,lang&expansions=author_id&user.fields=username,name`
     const r = await fetch(url, {
       headers: { 'Authorization': `Bearer ${TWITTER_BEARER}` },
@@ -256,7 +256,12 @@ async function fetchTwitterV2(kw) {
     })
     const body = await r.text()
     if (!r.ok) {
-      console.warn(`[TwitterV2] ${kw} HTTP ${r.status}: ${body.slice(0,200)}`)
+      console.warn(`[TwitterV2] ${kw} HTTP ${r.status}: ${body.slice(0,400)}`)
+      // Common errors:
+      // 401 = Bearer token invalid or expired
+      // 403 = App doesn't have required permissions
+      // 429 = Rate limit hit (500K/month on Basic)
+      // 400 = Invalid query (operators not supported on Basic tier)
       return []
     }
     const d = JSON.parse(body)
@@ -282,8 +287,8 @@ async function fetchTwitterV2(kw) {
 // ─── Google CSE Twitter search (searches Google for Twitter content) ──────────
 // Uses existing Google CSE key. Searches site:twitter.com OR site:x.com
 // Returns tweet URLs + snippets from Google's index
-const CSE_KEY = Deno.env.get('GOOGLE_CSE_KEY') ?? ''
-const CSE_CX  = Deno.env.get('GOOGLE_CSE_CX')  ?? ''
+const CSE_KEY = Deno.env.get('GOOGLE_CSE_KEY') ?? 'AIzaSyCSp3sFwrckph-b0nNeZw4Iy04xjAzBRBY'
+const CSE_CX  = Deno.env.get('GOOGLE_CSE_CX')  ?? 'c6115d16294f64f6a'
 
 async function fetchGoogleTwitter(kw) {
   if (!CSE_KEY || !CSE_CX) return []
@@ -364,7 +369,8 @@ async function fetchTwitterRapid(kw) {
   try {
     const q = encodeURIComponent(kw + ' india')
     // Twitter135: try search endpoint
-    const url = `https://twitter135.p.rapidapi.com/v2/Search/?q=${q}&count=20`
+    // Try twitter135 search - multiple possible endpoint formats
+    const url = `https://twitter135.p.rapidapi.com/v2/Search/?q=${q}&count=20&result_type=mixed&lang=en`
     console.log(`[TwitterRapid] fetching: ${url.slice(0,80)}`)
     const r = await fetch(url, {
       headers: {
@@ -540,6 +546,28 @@ async function geminiSentiment(text) {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
+  
+  // Quick Twitter API test: POST with {"test":"twitter"} to verify connection
+  let testBody: any = {}
+  try { testBody = await req.clone().json().catch(() => ({})) } catch { /* */ }
+  if (testBody?.test === 'twitter') {
+    try {
+      const testR = await fetch(
+        `https://api.twitter.com/2/tweets/search/recent?query=india%20politics&max_results=10`,
+        { headers: { 'Authorization': `Bearer ${TWITTER_BEARER}` }, signal: AbortSignal.timeout(10000) }
+      )
+      const testD = await testR.json()
+      return new Response(JSON.stringify({
+        ok: testR.ok,
+        status: testR.status,
+        tweetCount: testD?.data?.length || 0,
+        error: testD?.errors?.[0]?.message || testD?.detail || null,
+        tokenPreview: TWITTER_BEARER.slice(0, 20) + '...',
+      }), { headers: CORS })
+    } catch(e: any) {
+      return new Response(JSON.stringify({ ok: false, error: e.message }), { headers: CORS })
+    }
+  }
   try {
     const body = await req.json()
     const { accountId, politicianName, keywords: rawKeywords = [], maxPerSource = 20, nationalMode = false } = body
