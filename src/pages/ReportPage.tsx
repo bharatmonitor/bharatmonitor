@@ -298,9 +298,24 @@ const PERSONAS = [
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ReportPage() {
   const [searchParams] = useSearchParams()
-  const { data: account } = useAccount()
-  // Falls back to URL param when opened in new tab (no auth session)
-  const accountId = account?.id || searchParams.get('accountId') || ''
+  const { data: authAccount } = useAccount()
+  // When opened in a new tab, useAccount() returns null (no auth session).
+  // Fall back to fetching account directly from Supabase using the URL param.
+  const urlAccountId = searchParams.get('accountId') || ''
+  const { data: urlAccount } = useQuery({
+    queryKey: ['report-account-direct', urlAccountId],
+    queryFn: async () => {
+      if (!urlAccountId) return null
+      const { data } = await supabase.from('accounts').select('*').eq('id', urlAccountId).maybeSingle()
+      return data || null
+    },
+    enabled: !!urlAccountId && !authAccount,
+    staleTime: 60_000,
+  })
+
+  // Use auth account if available, otherwise use directly-fetched account
+  const account = authAccount || urlAccount
+  const accountId = account?.id || urlAccountId
 
   const { data: feed = [] }          = useFeedItems(accountId)
   const { data: contradictions = [] } = useContradictions(accountId)
@@ -310,6 +325,17 @@ export default function ReportPage() {
   const { data: schemes = [] }        = useSchemes(accountId, account)
   const { data: aiBrief }             = useAIBrief(accountId)
   const { data: analysis }            = useAnalysisReport(accountId)
+
+  // Show loading state while account is being fetched
+  if (urlAccountId && !account) {
+    return (
+      <div style={{ background: DARK, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: '11px', color: '#f97316' }}>
+          ⚙ LOADING REPORT DATA…
+        </div>
+      </div>
+    )
+  }
 
   const generated = new Date().toLocaleString('en-IN', {
     timeZone:'Asia/Kolkata', day:'2-digit', month:'long',
