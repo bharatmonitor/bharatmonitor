@@ -6,7 +6,7 @@ const GEMINI_KEY    = Deno.env.get('GEMINI_API_KEY') ?? ''
 const YT_KEY        = Deno.env.get('YT_API_KEY') ?? ''
 const NEWSDATA_KEY  = Deno.env.get('NEWSDATA_API_KEY') ?? ''
 const RAPIDAPI_KEY  = Deno.env.get('RAPIDAPI_KEY') ?? '0ac9d52ebbmsh9f434c4cfd7b7eep189ae9jsn6baf9d097761'
-const TWITTER_BEARER = Deno.env.get('TWITTER_BEARER_TOKEN') ?? 'AAAAAAAAAAAAAAAAAAAAAMba9gEAAAAAObRzF4TSWtNT+UOyRUwejJGrJzE=L7Bpuxu6gHsYiOPF89sLw06Nsk0j01kPxHmX37ty2IjPgyMMfU'
+const TWITTER_BEARER = Deno.env.get('TWITTER_BEARER_TOKEN') ?? 'AAAAAAAAAAAAAAAAAAAAAMba9gEAAAAAqDNTjGrivzEA38qDXtFdpxk9GhE=tn9E87l8df2YRn5mFcmIXt3hHSxXDC1jIWxpSfZr5yIt6Bf3ja'
 
 const db = createClient(SUPABASE_URL, SUPABASE_KEY)
 const CORS = {
@@ -183,16 +183,21 @@ async function fetchYouTube(kw) {
 }
 
 // ─── Source 6b: Twitter/X via GDELT ─────────────────────────────────────────
-// GDELT monitors Twitter/social media. Search with social: prefix.
+// GDELT full-text indexes articles. site: filter is banned — search keyword only,
+// then filter results by URL containing x.com or twitter.com
 async function fetchGDELTTwitter(kw) {
   try {
-    const q = encodeURIComponent('"' + kw + '" site:twitter.com OR site:x.com')
-    const url = 'https://api.gdeltproject.org/api/v2/doc/doc?query=' + q + '&mode=artlist&maxrecords=15&format=json'
-    const r = await fetch(url, { signal: AbortSignal.timeout(10000) })
-    if (!r.ok) return []
+    // No site: filter — GDELT bans it as "too common". Search keyword + india,
+    // then post-filter results for x.com/twitter.com URLs.
+    const safeKw = kw.split(' ').length < 2 ? kw + ' india politics' : kw + ' india'
+    const q = encodeURIComponent(safeKw)
+    const url = 'https://api.gdeltproject.org/api/v2/doc/doc?query=' + q + '&mode=artlist&maxrecords=50&format=json&SOURCELANG=ENGLISH&SOURCECOUNTRY=India'
+    const r = await fetch(url, { signal: AbortSignal.timeout(12000) })
+    if (!r.ok) { console.warn('[GDELTTwitter] HTTP ' + r.status); return [] }
     const d = await r.json()
-    const arts = (d?.articles || []).filter(a => a.url && (a.url.includes('twitter.com') || a.url.includes('x.com')))
-    console.log('[GDELTTwitter] ' + kw + ': ' + arts.length + ' tweets')
+    // Post-filter: only keep articles from x.com or twitter.com domains
+    const arts = (d?.articles || []).filter(a => a.url && (a.url.includes('x.com/') || a.url.includes('twitter.com/')))
+    console.log('[GDELTTwitter] ' + kw + ': ' + arts.length + ' tweets (from ' + (d?.articles||[]).length + ' total)')
     return arts.map(a => ({
       id: 'gdx-' + (a.url||'').slice(-25).replace(/[^a-z0-9]/gi,''),
       title: a.title || '', link: a.url || '',
@@ -284,39 +289,70 @@ async function fetchTwitterV2(kw) {
   } catch(e: any) { console.warn(`[TwitterV2] ${kw}:`, e.message); return [] }
 }
 
-// ─── Google CSE Twitter search (searches Google for Twitter content) ──────────
-// Uses existing Google CSE key. Searches site:twitter.com OR site:x.com
-// Returns tweet URLs + snippets from Google's index
-const CSE_KEY = Deno.env.get('GOOGLE_CSE_KEY') ?? 'AIzaSyCSp3sFwrckph-b0nNeZw4Iy04xjAzBRBY'
-const CSE_CX  = Deno.env.get('GOOGLE_CSE_CX')  ?? 'c6115d16294f64f6a'
+// ─── Google CSE REMOVED — "Search entire web" deprecated May 2026 ────────────
+// Replaced with: NewsAPI full-text body search + GDELT Twitter + Bluesky
+const CSE_KEY = Deno.env.get('GOOGLE_CSE_KEY') ?? ''
+const CSE_CX  = Deno.env.get('GOOGLE_CSE_CX')  ?? ''
 
-async function fetchGoogleTwitter(kw) {
-  if (!CSE_KEY || !CSE_CX) return []
+// Stub — kept so test endpoint compiles; always returns []
+async function fetchGoogleTwitter(_kw) { return [] }
+
+// ─── NewsAPI.org — full-text article body search ──────────────────────────────
+// Free tier: 100 req/day. Searches INSIDE article body, not just headlines.
+// This catches every article mentioning a politician even if not in headline.
+// Sign up free at newsapi.org and set NEWSAPI_KEY in Supabase secrets.
+const NEWSAPI_KEY = Deno.env.get('NEWSAPI_KEY') ?? ''
+
+async function fetchNewsAPIFullText(politicianName: string, kw: string) {
+  if (!NEWSAPI_KEY) return []
   try {
-    const q = encodeURIComponent(`${kw} india (site:twitter.com OR site:x.com)`)
-    const url = `https://www.googleapis.com/customsearch/v1?key=${CSE_KEY}&cx=${CSE_CX}&q=${q}&num=10&dateRestrict=d7`
-    const r = await fetch(url, { signal: AbortSignal.timeout(10000) })
-    if (!r.ok) { console.warn(`[GoogleTwitter] ${kw} HTTP ${r.status}`); return [] }
+    // 'q' searches full article body + title. 'qInTitle' is headline-only.
+    // Using 'q' ensures body mentions are captured.
+    const query = encodeURIComponent(politicianName || kw)
+    const url = `https://newsapi.org/v2/everything?q=${query}&language=en&sortBy=publishedAt&pageSize=20&apiKey=${NEWSAPI_KEY}`
+    const r = await fetch(url, { signal: AbortSignal.timeout(12000) })
+    if (!r.ok) { console.warn(`[NewsAPI] HTTP ${r.status}`); return [] }
     const d = await r.json()
-    const items = d?.items || []
-    console.log(`[GoogleTwitter] "${kw}": ${items.length} tweet URLs from Google`)
-    return items.map((item: any) => {
-      // Extract handle from URL: twitter.com/handle/status/ID
-      const urlParts = (item.link || '').replace('https://x.com/', '').replace('https://twitter.com/', '').split('/')
-      const handle = urlParts[0] || 'twitter'
-      const tweetId = urlParts[2] || Math.random().toString(36).slice(2)
-      return {
-        id: `gcse-tw-${tweetId}`,
-        title: (item.snippet || item.title || '').slice(0, 220),
-        link: item.link || '',
-        source: `@${handle}`,
-        pubDate: new Date().toISOString(),
-        platform: 'twitter',
-        body: item.snippet || '',
-        engagement: 0,
-      }
-    }).filter((t: any) => t.title)
-  } catch(e: any) { console.warn(`[GoogleTwitter] ${kw}:`, e.message); return [] }
+    const articles = d?.articles || []
+    console.log(`[NewsAPI] "${politicianName || kw}": ${articles.length} full-text matches`)
+    return articles
+      .filter((a: any) => a.url && !a.url.includes('[Removed]'))
+      .map((a: any) => ({
+        id: `napi-${(a.url||'x').slice(-30).replace(/[^a-z0-9]/gi,'')}`,
+        title: (a.title || '').slice(0, 220),
+        link: a.url || '',
+        source: a.source?.name || 'NewsAPI',
+        pubDate: a.publishedAt || new Date().toISOString(),
+        platform: 'news',
+        body: (a.description || a.content || '').slice(0, 500),
+      }))
+  } catch(e: any) { console.warn(`[NewsAPI] ${politicianName}:`, e.message); return [] }
+}
+
+// ─── GDELT full-text mention search ──────────────────────────────────────────
+// GDELT indexes full article text. Querying politician name finds body mentions.
+async function fetchGDELTFullText(politicianName: string) {
+  if (!politicianName) return []
+  try {
+    // Use politician name directly — GDELT searches full article text
+    const safeQ = politicianName.split(' ').length < 2 ? politicianName + ' india' : politicianName
+    const q = encodeURIComponent(safeQ)
+    const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${q}&mode=artlist&maxrecords=25&format=json&SOURCELANG=ENGLISH,HINDI&SOURCECOUNTRY=India`
+    const r = await fetch(url, { signal: AbortSignal.timeout(12000) })
+    if (!r.ok) { console.warn(`[GDELTFullText] HTTP ${r.status}`); return [] }
+    const d = await r.json()
+    const arts = d?.articles || []
+    console.log(`[GDELTFullText] "${politicianName}": ${arts.length} full-text matches`)
+    return arts.map((a: any) => ({
+      id: `gdft-${(a.url||'x').slice(-30).replace(/[^a-z0-9]/gi,'')}`,
+      title: a.title || '',
+      link: a.url || '',
+      source: a.domain || 'GDELT',
+      pubDate: a.seendate ? a.seendate.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/,'$1-$2-$3T$4:$5:$6Z') : new Date().toISOString(),
+      platform: 'news',
+      body: '',
+    }))
+  } catch(e: any) { console.warn(`[GDELTFullText] ${politicianName}:`, e.message); return [] }
 }
 
 async function fetchReddit(kw) {
@@ -547,22 +583,27 @@ async function geminiSentiment(text) {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
   
-  // Quick Twitter API test: POST with {"test":"twitter"} to verify connection
-  let testBody: any = {}
-  try { testBody = await req.clone().json().catch(() => ({})) } catch { /* */ }
-  if (testBody?.test === 'twitter') {
+  // GET ?test=twitter → tests active Twitter-content sources
+  const url = new URL(req.url)
+  if (url.pathname.endsWith('/test-twitter') || url.searchParams.get('test') === 'twitter') {
     try {
-      const testR = await fetch(
-        `https://api.twitter.com/2/tweets/search/recent?query=india%20politics&max_results=10`,
-        { headers: { 'Authorization': `Bearer ${TWITTER_BEARER}` }, signal: AbortSignal.timeout(10000) }
-      )
-      const testD = await testR.json()
+      const [gdeltTweets, bskyPosts, gdeltFull] = await Promise.all([
+        fetchGDELTTwitter('Modi india'),
+        fetchBluesky('Modi india'),
+        fetchGDELTFullText('Narendra Modi'),
+      ])
+      const total = gdeltTweets.length + bskyPosts.length + gdeltFull.length
       return new Response(JSON.stringify({
-        ok: testR.ok,
-        status: testR.status,
-        tweetCount: testD?.data?.length || 0,
-        error: testD?.errors?.[0]?.message || testD?.detail || null,
-        tokenPreview: TWITTER_BEARER.slice(0, 20) + '...',
+        ok: total > 0,
+        sources: {
+          gdelt_twitter: gdeltTweets.length,
+          bluesky: bskyPosts.length,
+          gdelt_fulltext: gdeltFull.length,
+          newsapi: NEWSAPI_KEY ? 'key set - will run on real ingest' : 'NO KEY - set NEWSAPI_KEY in Supabase secrets',
+        },
+        total_items: total,
+        sample: (gdeltTweets[0] || bskyPosts[0] || gdeltFull[0])?.title?.slice(0, 80) || null,
+        note: 'Twitter API v2 disabled (Pay Per Use 402). CSE deprecated. Using GDELT + Bluesky + NewsAPI.',
       }), { headers: CORS })
     } catch(e: any) {
       return new Response(JSON.stringify({ ok: false, error: e.message }), { headers: CORS })
@@ -595,17 +636,22 @@ Deno.serve(async (req) => {
       // Indian newspaper RSS feeds
       ...kws.slice(0,3).map(kw => fetchIndianRSS(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // NewsData.io
-      ...kws.slice(0,3).map(kw => fetchNewsData(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
+      // NewsData: capped at 2 keywords (200 req/day free tier)
+      ...kws.slice(0,2).map(kw => fetchNewsData(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // YouTube
-      ...kws.slice(0,3).map(kw => fetchYouTube(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
+      // YouTube: capped at 1 keyword (100 units each, 10k daily limit burns fast)
+      ...kws.slice(0,1).map(kw => fetchYouTube(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // Reddit
       ...kws.slice(0,3).map(kw => fetchReddit(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // Twitter/X content via GDELT social media indexing
       ...kws.slice(0,4).map(kw => fetchGDELTTwitter(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // Bluesky - completely free, open API, no key needed
       ...kws.slice(0,5).map(kw => fetchBluesky(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
-      // Google CSE Twitter (searches Google for twitter.com content - always works)
-      ...kws.slice(0,4).map(kw => fetchGoogleTwitter(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
+      // Google CSE REMOVED (deprecated). NewsAPI full-text body search replaces it.
+      // NewsAPI: searches full article body — catches mentions not in headline
+      fetchNewsAPIFullText(politicianName || keywords[0], keywords[0]).then(items => allRaw.push(...items.map(i=>({...i,keyword:keywords[0]})))),
+      // GDELT full-text: politician name searched across full article text
+      fetchGDELTFullText(politicianName || keywords[0]).then(items => allRaw.push(...items.map(i=>({...i,keyword:keywords[0]})))),
       // RapidAPI: Twitter135 search (primary Twitter source)
       ...kws.slice(0,4).map(kw => fetchTwitterRapid(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // RapidAPI: TwttrAPI (backup Twitter source, different data format)
@@ -614,8 +660,8 @@ Deno.serve(async (req) => {
       ...kws.slice(0,3).map(kw => fetchInstagramRapid(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // RapidAPI: Facebook public post search
       ...kws.slice(0,3).map(kw => fetchFacebookRapid(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
-      // Twitter API v2 (if TWITTER_BEARER_TOKEN is set - extra source)
-      ...kws.slice(0,3).map(kw => fetchTwitterV2(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
+      // Twitter API v2 DISABLED — Pay Per Use account causes 402. Re-enable when plan switched to Free.
+      // ...kws.slice(0,3).map(kw => fetchTwitterV2(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // Nitter discontinued May 2026 — removed
       // Bluesky watchlist handles (from body.watchlistHandles)
       ...(body.watchlistHandles||[]).filter(h=>h.includes('bsky')||h.includes('bsky.social')).slice(0,10).map(h => fetchBlueskyUser(h).then(items => allRaw.push(...items.map(i=>({...i,keyword:kws[0]||''})))))

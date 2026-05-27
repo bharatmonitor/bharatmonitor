@@ -35,7 +35,7 @@ function CredentialEditor({ account, onClose, onSave }: {
   onSave: (email: string, password: string, name: string) => Promise<void>
 }) {
   const defaultEmail = (account as any).login_email || account.contact_email ||
-    `${(account.politician_name||'user').toLowerCase().replace(/\s+/g,'.')}.${account.id.slice(-4)}@bharatmonitor.in`
+    `${(account.politician_name||'user').toLowerCase().replace(/\s+/g,'.')}.${account.id.slice(-4)}@bharatmonitor.online`
   const [email,    setEmail]    = useState(defaultEmail)
   const [password, setPassword] = useState('')
   const [name,     setName]     = useState(account.politician_name || '')
@@ -156,7 +156,7 @@ export default function GodModePage() {
     const finalPwd   = password || 'demo@1234'
     const newId      = `BM-${new Date().getFullYear()}-${Math.random().toString(36).slice(2,10).toUpperCase()}`
     const cleanName  = (data.politician_name||'user').toLowerCase().replace(/[^a-z0-9]/g,'.').replace(/\.{2,}/g,'.').replace(/\.$/,'')
-    const loginEmail = (data.contact_email || `${cleanName}.${newId.slice(-4)}@bharatmonitor.in`).toLowerCase().trim()
+    const loginEmail = (data.contact_email || `${cleanName}.${newId.slice(-4)}@bharatmonitor.online`).toLowerCase().trim()
     try {
       await createAccount.mutateAsync({
         ...data,
@@ -291,7 +291,7 @@ export default function GodModePage() {
                     {filtered.map(acc => {
                       const hc         = HARDCODED_CREDS.find(c => c.account_id===acc.id)
                       const quota      = getQuota(acc.id, false)
-                      const loginEmail = (acc as any).login_email||hc?.email||acc.contact_email||`${(acc.politician_name||'user').toLowerCase().replace(/\s+/g,'.')}.${acc.id.slice(-4)}@bharatmonitor.in`
+                      const loginEmail = (acc as any).login_email||hc?.email||acc.contact_email||`${(acc.politician_name||'user').toLowerCase().replace(/\s+/g,'.')}.${acc.id.slice(-4)}@bharatmonitor.online`
                       const loginPwd   = (acc as any).login_password||hc?.password||'demo@1234'
                       const totalUsed  = quota.newsUsed+quota.youtubeUsed+quota.socialUsed
                       const totalLimit = quota.newsLimit+quota.youtubeLimit+quota.socialLimit
@@ -543,7 +543,7 @@ export default function GodModePage() {
             try {
               // Determine login email — use contact_email if updated, else existing login_email, else generate
               const loginEmail = (patch.contact_email || (editAccount as any).login_email || editAccount.contact_email ||
-                `${(editAccount.politician_name||'').toLowerCase().replace(/[^a-z0-9]/g,'.')}.${editAccount.id.slice(-4)}@bharatmonitor.in`).toLowerCase().trim()
+                `${(editAccount.politician_name||'').toLowerCase().replace(/[^a-z0-9]/g,'.')}.${editAccount.id.slice(-4)}@bharatmonitor.online`).toLowerCase().trim()
               // Use new password if set, else keep existing
               const loginPwd = password || (editAccount as any).login_password || 'demo@1234'
               // Inject login fields into patch so updateAccount writes them to DB

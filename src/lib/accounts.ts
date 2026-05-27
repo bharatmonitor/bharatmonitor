@@ -20,8 +20,8 @@ export interface HardcodedCred {
 }
 
 export const HARDCODED_CREDS: HardcodedCred[] = [
-  { id: '9999999999999999', email: 'god@bharatmonitor.in', password: 'BM@God2024!', role: 'god', tier: 'god', account_id: 'god-account', name: 'God Mode' },
-  { id: 'demo-001', email: 'modi@bharatmonitor.in', password: 'Demo@Modi2024', role: 'user', tier: 'elections', account_id: 'demo-001', name: 'Narendra Modi (Demo)' },
+  { id: '9999999999999999', email: 'god@bharatmonitor.online', password: 'BM@God2024!', role: 'god', tier: 'god', account_id: 'god-account', name: 'God Mode' },
+  { id: 'demo-001', email: 'modi@bharatmonitor.online', password: 'Demo@Modi2024', role: 'user', tier: 'elections', account_id: 'demo-001', name: 'Narendra Modi (Demo)' },
 ]
 
 const DEMO_ACCOUNT_MAP: Record<string, Account> = {
@@ -193,7 +193,7 @@ export async function fetchAccount(userId: string): Promise<Account | null> {
   const cred = HARDCODED_CREDS.find(c => c.id === userId)
   if (cred) {
     if (userId === '9999999999999999') {
-      const godBase: Account = { id: 'god-account', user_id: userId, created_by: userId, is_active: true, politician_name: 'God Mode', politician_initials: 'GM', party: '', designation: 'Platform Administrator', constituency: '', constituency_type: 'national', state: '', district: '', keywords: ['India politics', 'BJP', 'Congress', 'PM Modi', 'Rahul Gandhi', 'Indian elections', 'Parliament India'], tracked_politicians: [{ id: 'tp1', name: 'Narendra Modi', party: 'BJP', initials: 'NM', role: 'Prime Minister', is_competitor: false }, { id: 'tp2', name: 'Rahul Gandhi', party: 'INC', initials: 'RG', role: 'Leader of Opposition', is_competitor: false }], tracked_ministries: ['Finance', 'Home Affairs', 'Defence', 'External Affairs'], tracked_parties: ['BJP', 'INC', 'AAP', 'TMC', 'SP'], tracked_schemes: ['PM Awas Yojana', 'Ayushman Bharat', 'Digital India'], watchlist_handles: [], languages: ['english', 'hindi'], geo_scope: [{ level: 'national', name: 'India' }], alert_prefs: { red_sms: false, red_push: false, red_email: false, yellow_push: false, yellow_email: false }, contact_email: 'god@bharatmonitor.in', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+      const godBase: Account = { id: 'god-account', user_id: userId, created_by: userId, is_active: true, politician_name: 'God Mode', politician_initials: 'GM', party: '', designation: 'Platform Administrator', constituency: '', constituency_type: 'national', state: '', district: '', keywords: ['India politics', 'BJP', 'Congress', 'PM Modi', 'Rahul Gandhi', 'Indian elections', 'Parliament India'], tracked_politicians: [{ id: 'tp1', name: 'Narendra Modi', party: 'BJP', initials: 'NM', role: 'Prime Minister', is_competitor: false }, { id: 'tp2', name: 'Rahul Gandhi', party: 'INC', initials: 'RG', role: 'Leader of Opposition', is_competitor: false }], tracked_ministries: ['Finance', 'Home Affairs', 'Defence', 'External Affairs'], tracked_parties: ['BJP', 'INC', 'AAP', 'TMC', 'SP'], tracked_schemes: ['PM Awas Yojana', 'Ayushman Bharat', 'Digital India'], watchlist_handles: [], languages: ['english', 'hindi'], geo_scope: [{ level: 'national', name: 'India' }], alert_prefs: { red_sms: false, red_push: false, red_email: false, yellow_push: false, yellow_email: false }, contact_email: 'god@bharatmonitor.online', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
       // Load saved keywords from Supabase (persists across devices/sessions)
       try {
         const { data: dbSaved } = await supabaseAdmin.from('accounts')
@@ -355,7 +355,7 @@ export async function createAccount(data: Partial<Account>): Promise<Account> {
     const base = safe.contact_email as string ||
       ((safe.politician_name as string || 'user')
         .toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.{2,}/g, '.').replace(/\.$/, ''))
-    safe.login_email = `${base}.${String(safe.id).slice(-4)}@bharatmonitor.in`
+    safe.login_email = `${base}.${String(safe.id).slice(-4)}@bharatmonitor.online`
   }
   if (!safe.login_password) {
     safe.login_password = 'demo@1234'

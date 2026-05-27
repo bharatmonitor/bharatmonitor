@@ -42,7 +42,7 @@ export const ADVANCED_ACCOUNT: Account = {
   languages: ['hindi', 'english', 'punjabi'],
   geo_scope: [{ level: 'state', name: 'Delhi' }],
   alert_prefs: { red_sms: false, red_push: true, red_email: true, yellow_push: true, yellow_email: false },
-  contact_email: 'rekha@bharatmonitor.in', email: 'rekha@bharatmonitor.in', created_at: '2024-01-15T10:00:00Z', updated_at: new Date().toISOString(),
+  contact_email: 'rekha@bharatmonitor.online', email: 'rekha@bharatmonitor.online', created_at: '2024-01-15T10:00:00Z', updated_at: new Date().toISOString(),
 }
 
 export const DEMO_ACCOUNT: Account = {
@@ -64,7 +64,7 @@ export const DEMO_ACCOUNT: Account = {
   languages: ['english', 'hindi', 'gujarati', 'marathi', 'punjabi'],
   geo_scope: [{ level: 'national', name: 'India' }],
   alert_prefs: { red_sms: true, red_push: true, red_email: true, yellow_push: true, yellow_email: false },
-  contact_email: 'modi@bharatmonitor.in', email: 'modi@bharatmonitor.in', created_at: '2024-01-15T10:00:00Z', updated_at: new Date().toISOString(),
+  contact_email: 'modi@bharatmonitor.online', email: 'modi@bharatmonitor.online', created_at: '2024-01-15T10:00:00Z', updated_at: new Date().toISOString(),
 }
 
 // BASIC — Sushant Shukla, MLA Chhattisgarh
@@ -88,7 +88,7 @@ export const SUSHANT_ACCOUNT: Account = {
     { level: 'state', name: 'Chhattisgarh' },
   ],
   alert_prefs: { red_sms: false, red_push: false, red_email: true, yellow_push: false, yellow_email: false },
-  contact_email: 'sushant@bharatmonitor.in', email: 'sushant@bharatmonitor.in', created_at: '2024-01-15T10:00:00Z', updated_at: new Date().toISOString(),
+  contact_email: 'sushant@bharatmonitor.online', email: 'sushant@bharatmonitor.online', created_at: '2024-01-15T10:00:00Z', updated_at: new Date().toISOString(),
 }
 
 
@@ -131,7 +131,7 @@ export const RAILWAYS_ACCOUNT: Account = {
   languages: ['english', 'hindi', 'telugu', 'tamil', 'bengali', 'marathi', 'gujarati'],
   geo_scope: [{ level: 'national', name: 'India' }],
   alert_prefs: { red_sms: true, red_push: true, red_email: true, yellow_push: true, yellow_email: true },
-  contact_email: 'railways@bharatmonitor.in', email: 'railways@bharatmonitor.in', created_at: '2024-01-15T10:00:00Z', updated_at: new Date().toISOString(),
+  contact_email: 'railways@bharatmonitor.online', email: 'railways@bharatmonitor.online', created_at: '2024-01-15T10:00:00Z', updated_at: new Date().toISOString(),
 }
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
