@@ -1,8 +1,7 @@
 // BharatMonitor — Opposition Research Terminal
-// Search any politician × topic and get a full dossier:
-// historical statements, contradiction analysis, vulnerability score, strategic assessment
+// PATCHED: VDS quick targets added, sources_used display added
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useAccount } from '@/hooks/useData'
 import NavBar from '@/components/layout/NavBar'
 import { SUPABASE_URL, ANON_KEY, SERVICE_KEY } from '@/lib/supabase'
@@ -23,18 +22,27 @@ const T1     = '#c8d0e0'
 const T2     = '#8892a4'
 const T3     = '#545f78'
 
-// Quick-search presets
-const QUICK_TARGETS = [
-  { politician: 'Rahul Gandhi',      topic: 'privatisation',        label: 'RG × Privatisation' },
-  { politician: 'Rahul Gandhi',      topic: 'farmers protest',       label: 'RG × Farmers' },
-  { politician: 'Arvind Kejriwal',   topic: 'corruption',            label: 'AK × Corruption' },
-  { politician: 'Arvind Kejriwal',   topic: 'free electricity',      label: 'AK × Free Power' },
-  { politician: 'Mamata Banerjee',   topic: 'central agencies',      label: 'MB × ED/CBI' },
-  { politician: 'Narendra Modi',     topic: 'China',                 label: 'NM × China' },
-  { politician: 'Narendra Modi',     topic: 'inflation',             label: 'NM × Inflation' },
-  { politician: 'Amit Shah',         topic: 'NRC CAA',               label: 'AS × NRC/CAA' },
-  { politician: 'MK Stalin',         topic: 'delimitation',          label: 'MKS × Delimitation' },
-  { politician: 'Akhilesh Yadav',    topic: 'development UP',        label: 'AY × UP Dev' },
+// ─── QUICK TARGETS ───────────────────────────────────────────────────────────
+// Grouped: VDS-specific first, then national targets
+const QUICK_TARGETS_VDS = [
+  { politician: 'Vishnu Deo Sai',  topic: 'Mahtari Vandan Yojana',    label: 'VDS × Mahtari Vandan' },
+  { politician: 'Vishnu Deo Sai',  topic: 'Naxal Bastar security',    label: 'VDS × Naxal/Bastar' },
+  { politician: 'Vishnu Deo Sai',  topic: 'tribal land rights',        label: 'VDS × Tribal Land' },
+  { politician: 'Vishnu Deo Sai',  topic: 'coal mining Chhattisgarh', label: 'VDS × Coal/Mining' },
+  { politician: 'Vishnu Deo Sai',  topic: 'BJP election promises 2023',label: 'VDS × Promises' },
+  { politician: 'Vishnu Deo Sai',  topic: 'development Chhattisgarh', label: 'VDS × Development' },
+  { politician: 'Bhupesh Baghel',  topic: 'corruption scam',           label: 'Baghel × Corruption' },
+  { politician: 'Bhupesh Baghel',  topic: 'Mahadev betting app',       label: 'Baghel × Mahadev' },
+  { politician: 'Bhupesh Baghel',  topic: 'governance Chhattisgarh',   label: 'Baghel × Governance' },
+]
+
+const QUICK_TARGETS_NATIONAL = [
+  { politician: 'Rahul Gandhi',    topic: 'privatisation',             label: 'RG × Privatisation' },
+  { politician: 'Rahul Gandhi',    topic: 'farmers protest',           label: 'RG × Farmers' },
+  { politician: 'Arvind Kejriwal', topic: 'corruption',                label: 'AK × Corruption' },
+  { politician: 'Narendra Modi',   topic: 'China',                     label: 'NM × China' },
+  { politician: 'Narendra Modi',   topic: 'inflation',                 label: 'NM × Inflation' },
+  { politician: 'Amit Shah',       topic: 'NRC CAA',                   label: 'AS × NRC/CAA' },
 ]
 
 const FLIP_COLORS: Record<string, string> = {
@@ -68,6 +76,7 @@ interface ResearchResult {
   topic: string
   searchedAt: string
   totalSources: number
+  sources_used?: { newsapi: number; gdelt: number; gdelt_variants: number; bm_feed: number }
   statements: { title: string; snippet: string; source: string; url: string; date: string; sentiment: string }[]
   analysis: {
     summary: string
@@ -129,7 +138,6 @@ function ContradictionCard({ c, index }: { c: Contradiction; index: number }) {
 
       {expanded && (
         <div style={{ borderTop: `1px solid ${BORDER}`, padding: '14px 16px' }}>
-          {/* Before / After */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
             <div style={{ background: GREEN + '08', border: `1px solid ${GREEN}20`, borderRadius: '8px', padding: '10px 12px' }}>
               <div style={{ fontFamily: mono, fontSize: '7px', color: GREEN, letterSpacing: '1px', marginBottom: '6px' }}>EARLIER POSITION</div>
@@ -140,10 +148,8 @@ function ContradictionCard({ c, index }: { c: Contradiction; index: number }) {
               <div style={{ fontSize: '11px', color: T1, lineHeight: 1.6 }}>{c.later_position}</div>
             </div>
           </div>
-
           <div style={{ fontFamily: mono, fontSize: '8px', color: T3, marginBottom: '5px' }}>POLITICAL CONTEXT</div>
           <div style={{ fontSize: '11px', color: T2, lineHeight: 1.6, marginBottom: '12px' }}>{c.political_context}</div>
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div style={{ background: RED + '06', border: `1px solid ${RED}15`, borderRadius: '7px', padding: '10px 12px' }}>
               <div style={{ fontFamily: mono, fontSize: '7px', color: RED, letterSpacing: '1px', marginBottom: '5px' }}>⚔ ATTACK ANGLE</div>
@@ -171,6 +177,7 @@ export default function OppositionResearchPage() {
   const [result, setResult]         = useState<ResearchResult | null>(null)
   const [activeTab, setActiveTab]   = useState<'overview' | 'contradictions' | 'statements' | 'strategy'>('overview')
   const [history, setHistory]       = useState<{ politician: string; topic: string }[]>([])
+  const [quickGroup, setQuickGroup] = useState<'vds' | 'national'>('vds')
 
   async function runResearch(pol?: string, top?: string) {
     const p = pol || politician, t = top || topic
@@ -206,6 +213,8 @@ export default function OppositionResearchPage() {
     : GREEN
     : T2
 
+  const activeQuickTargets = quickGroup === 'vds' ? QUICK_TARGETS_VDS : QUICK_TARGETS_NATIONAL
+
   return (
     <div style={{ minHeight: '100vh', background: DARK }}>
       <NavBar />
@@ -226,23 +235,15 @@ export default function OppositionResearchPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '10px', alignItems: 'end', marginBottom: '14px' }}>
             <div>
               <div style={{ fontFamily: mono, fontSize: '7px', color: T3, letterSpacing: '1px', marginBottom: '5px' }}>POLITICIAN</div>
-              <input
-                value={politician}
-                onChange={e => setPolitician(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && runResearch()}
-                placeholder="e.g. Rahul Gandhi"
-                style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: '7px', color: T0, fontFamily: mono, fontSize: '11px', outline: 'none', boxSizing: 'border-box' }}
-              />
+              <input value={politician} onChange={e => setPolitician(e.target.value)} onKeyDown={e => e.key === 'Enter' && runResearch()}
+                placeholder="e.g. Vishnu Deo Sai"
+                style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: '7px', color: T0, fontFamily: mono, fontSize: '11px', outline: 'none', boxSizing: 'border-box' }} />
             </div>
             <div>
               <div style={{ fontFamily: mono, fontSize: '7px', color: T3, letterSpacing: '1px', marginBottom: '5px' }}>TOPIC / ISSUE</div>
-              <input
-                value={topic}
-                onChange={e => setTopic(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && runResearch()}
-                placeholder="e.g. privatisation, farmers, China"
-                style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: '7px', color: T0, fontFamily: mono, fontSize: '11px', outline: 'none', boxSizing: 'border-box' }}
-              />
+              <input value={topic} onChange={e => setTopic(e.target.value)} onKeyDown={e => e.key === 'Enter' && runResearch()}
+                placeholder="e.g. Naxal, tribal land, Mahtari Vandan"
+                style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: '7px', color: T0, fontFamily: mono, fontSize: '11px', outline: 'none', boxSizing: 'border-box' }} />
             </div>
             <div>
               <div style={{ fontFamily: mono, fontSize: '7px', color: T3, letterSpacing: '1px', marginBottom: '5px' }}>YEARS BACK</div>
@@ -257,12 +258,23 @@ export default function OppositionResearchPage() {
             </button>
           </div>
 
-          {/* Quick picks */}
+          {/* Quick targets with group toggle */}
           <div>
-            <div style={{ fontFamily: mono, fontSize: '7px', color: T3, letterSpacing: '1px', marginBottom: '6px' }}>QUICK TARGETS</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <div style={{ fontFamily: mono, fontSize: '7px', color: T3, letterSpacing: '1px' }}>QUICK TARGETS</div>
+              <div style={{ display: 'flex', gap: '2px' }}>
+                {(['vds', 'national'] as const).map(g => (
+                  <button key={g} onClick={() => setQuickGroup(g)}
+                    style={{ padding: '2px 8px', borderRadius: '4px', border: `1px solid ${quickGroup === g ? ACC + '60' : BORDER}`, background: quickGroup === g ? ACC + '12' : 'transparent', color: quickGroup === g ? ACC : T3, fontFamily: mono, fontSize: '7px', cursor: 'pointer' }}>
+                    {g === 'vds' ? 'CHHATTISGARH' : 'NATIONAL'}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-              {QUICK_TARGETS.map(qt => (
-                <button key={qt.label} onClick={() => { setPolitician(qt.politician); setTopic(qt.topic); runResearch(qt.politician, qt.topic) }}
+              {activeQuickTargets.map(qt => (
+                <button key={qt.label}
+                  onClick={() => { setPolitician(qt.politician); setTopic(qt.topic); runResearch(qt.politician, qt.topic) }}
                   style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${BORDER}`, background: 'transparent', color: T2, fontFamily: mono, fontSize: '8px', cursor: 'pointer', transition: 'all .15s' }}
                   onMouseEnter={e => { (e.target as HTMLElement).style.borderColor = RED; (e.target as HTMLElement).style.color = RED }}
                   onMouseLeave={e => { (e.target as HTMLElement).style.borderColor = BORDER; (e.target as HTMLElement).style.color = T2 }}>
@@ -283,9 +295,9 @@ export default function OppositionResearchPage() {
           <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: '12px', padding: '56px', textAlign: 'center' }}>
             <div style={{ fontFamily: mono, fontSize: '10px', color: RED, marginBottom: '12px' }}>⚙ RESEARCHING {politician.toUpperCase()} × {topic.toUpperCase()}…</div>
             <div style={{ fontFamily: mono, fontSize: '9px', color: T3, lineHeight: 2.2 }}>
-              Searching trusted Indian news sources…<br />
-              Pulling parliamentary records…<br />
-              Collecting statements across {yearsBack} years…<br />
+              Searching NewsAPI full-text index…<br />
+              Pulling GDELT document archive…<br />
+              Searching BharatMonitor feed database…<br />
               Running Gemini contradiction analysis…<br />
               Mapping attack/defense angles…
             </div>
@@ -298,9 +310,9 @@ export default function OppositionResearchPage() {
             <div style={{ fontFamily: mono, fontSize: '11px', color: T1, marginBottom: '10px' }}>OPPOSITION RESEARCH TERMINAL</div>
             <div style={{ fontFamily: mono, fontSize: '9px', color: T3, lineHeight: 2.2, maxWidth: '540px', margin: '0 auto' }}>
               Enter any politician and topic above, or click a Quick Target.<br />
-              The system searches NDTV, The Hindu, IE, Times of India, The Wire,<br />
-              Scroll, LiveMint, PIB, Lok Sabha/Rajya Sabha records — then runs<br />
-              Gemini AI to find contradictions, broken promises, and position shifts.<br /><br />
+              The system searches NewsAPI (full article body), GDELT document archive,<br />
+              and BharatMonitor's live feed — then runs Gemini AI to find<br />
+              contradictions, broken promises, and position shifts.<br /><br />
               Returns: statements timeline · contradiction dossier · vulnerability score<br />
               attack angles · defense angles · strategic assessment
             </div>
@@ -323,13 +335,13 @@ export default function OppositionResearchPage() {
         {result && (
           <div>
             {/* Stats bar */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '10px', marginBottom: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '10px', marginBottom: '16px' }}>
               {[
-                { l: 'SOURCES',        v: result.stats.totalStatements,    c: T0 },
-                { l: 'CONTRADICTIONS', v: result.stats.contradictionsFound, c: result.stats.contradictionsFound > 0 ? RED : GREEN },
+                { l: 'SOURCES',        v: result.stats.totalStatements,     c: T0 },
+                { l: 'CONTRADICTIONS', v: result.stats.contradictionsFound,  c: result.stats.contradictionsFound > 0 ? RED : GREEN },
                 { l: 'VULNERABILITY',  v: `${result.stats.vulnerabilityScore}%`, c: vulnColor },
-                { l: 'CONSISTENCY',    v: `${result.stats.consistencyScore}%`, c: result.stats.consistencyScore >= 70 ? GREEN : YELLOW },
-                { l: 'DATE RANGE',     v: result.stats.dateRange,           c: T2 },
+                { l: 'CONSISTENCY',    v: `${result.stats.consistencyScore}%`,   c: result.stats.consistencyScore >= 70 ? GREEN : YELLOW },
+                { l: 'DATE RANGE',     v: result.stats.dateRange,            c: T2 },
               ].map(k => (
                 <div key={k.l} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: '10px', padding: '12px 14px' }}>
                   <div style={{ fontFamily: mono, fontSize: '7px', color: T3, letterSpacing: '1px', marginBottom: '5px' }}>{k.l}</div>
@@ -337,6 +349,18 @@ export default function OppositionResearchPage() {
                 </div>
               ))}
             </div>
+
+            {/* Source breakdown — shows where data came from */}
+            {result.sources_used && (
+              <div style={{ background: CARD2, border: `1px solid ${BORDER}`, borderRadius: '8px', padding: '8px 14px', marginBottom: '14px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+                <span style={{ fontFamily: mono, fontSize: '7px', color: T3 }}>SOURCES:</span>
+                {Object.entries(result.sources_used).map(([k, v]) => (
+                  <span key={k} style={{ fontFamily: mono, fontSize: '7px', color: (v as number) > 0 ? GREEN : T3 }}>
+                    {k.toUpperCase().replace('_', ' ')} {v}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Subject line */}
             <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${RED}`, borderRadius: '10px', padding: '14px 18px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -353,7 +377,7 @@ export default function OppositionResearchPage() {
             {/* Tab bar */}
             <div style={{ display: 'flex', gap: '2px', borderBottom: `1px solid ${BORDER}`, marginBottom: '20px' }}>
               {([
-                ['overview',       'OVERVIEW',       result.analysis?.contradictions?.length || 0],
+                ['overview',       'OVERVIEW',       0],
                 ['contradictions', 'CONTRADICTIONS', result.analysis?.contradictions?.length || 0],
                 ['statements',     'STATEMENTS',     result.statements.length],
                 ['strategy',       'STRATEGY',       0],
@@ -374,7 +398,6 @@ export default function OppositionResearchPage() {
                     <div style={{ fontSize: '12px', color: T1, lineHeight: 1.7, marginBottom: '14px' }}>{result.analysis.summary}</div>
                     <ConsistencyMeter score={result.analysis.overallConsistency} />
                   </div>
-
                   {result.analysis.keyStatements?.length > 0 && (
                     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: '12px', padding: '18px' }}>
                       <div style={{ fontFamily: mono, fontSize: '8px', color: T3, letterSpacing: '1px', marginBottom: '10px' }}>KEY STATEMENTS</div>
@@ -394,7 +417,6 @@ export default function OppositionResearchPage() {
                     </div>
                   )}
                 </div>
-
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   {result.analysis.contradictions?.length > 0 && (
                     <div style={{ background: CARD, border: `1px solid ${RED}20`, borderRadius: '12px', padding: '18px' }}>
@@ -416,7 +438,6 @@ export default function OppositionResearchPage() {
                       </button>
                     </div>
                   )}
-
                   <div style={{ background: CARD, border: `1px solid ${PURPLE}20`, borderRadius: '12px', padding: '18px' }}>
                     <div style={{ fontFamily: mono, fontSize: '8px', color: PURPLE, letterSpacing: '1px', marginBottom: '10px' }}>STRATEGIC ASSESSMENT</div>
                     <div style={{ fontSize: '12px', color: T1, lineHeight: 1.7 }}>{result.analysis.strategicAssessment}</div>
@@ -428,16 +449,12 @@ export default function OppositionResearchPage() {
             {/* ── CONTRADICTIONS ── */}
             {activeTab === 'contradictions' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {result.analysis?.contradictions?.length === 0 ? (
+                {!result.analysis?.contradictions?.length ? (
                   <div style={{ background: GREEN + '08', border: `1px solid ${GREEN}25`, borderRadius: '12px', padding: '28px', textAlign: 'center' }}>
                     <div style={{ fontFamily: mono, fontSize: '10px', color: GREEN, marginBottom: '6px' }}>NO MAJOR CONTRADICTIONS FOUND</div>
                     <div style={{ fontFamily: mono, fontSize: '9px', color: T3 }}>Position appears consistent on this topic across the search window.</div>
                   </div>
-                ) : (
-                  result.analysis?.contradictions.map((c, i) => (
-                    <ContradictionCard key={i} c={c} index={i} />
-                  ))
-                )}
+                ) : result.analysis.contradictions.map((c, i) => <ContradictionCard key={i} c={c} index={i} />)}
               </div>
             )}
 
