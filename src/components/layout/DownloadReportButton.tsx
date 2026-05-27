@@ -1,7 +1,14 @@
+import { useAccount } from '@/hooks/useData'
+
 export default function DownloadReportButton() {
+  const { data: account } = useAccount()
+
   function openReport() {
-    window.open('/report', '_blank', 'noopener,noreferrer')
+    const accountId = account?.id || ''
+    const url = accountId ? `/report?accountId=${accountId}` : '/report'
+    window.open(url, '_blank', 'noopener,noreferrer')
   }
+
   return (
     <button
       onClick={openReport}
