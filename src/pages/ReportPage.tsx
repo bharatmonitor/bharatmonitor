@@ -308,20 +308,18 @@ export default function ReportPage() {
     queryKey: ['report-account-direct', urlAccountId],
     queryFn: async () => {
       if (!urlAccountId) return null
-      // Try by account id first
+      // Try by account id (BM-2026-XXXX format)
       const { data: byId } = await supabase
-        .from('accounts')
-        .select('*')
-        .eq('id', urlAccountId)
-        .maybeSingle()
+        .from('accounts').select('*').eq('id', urlAccountId).maybeSingle()
       if (byId) return byId
-      // Fallback: try by user_id
+      // Try by user_id (numeric string from Supabase Auth)
       const { data: byUserId } = await supabase
-        .from('accounts')
-        .select('*')
-        .eq('user_id', urlAccountId)
-        .maybeSingle()
-      return byUserId || null
+        .from('accounts').select('*').eq('user_id', urlAccountId).maybeSingle()
+      if (byUserId) return byUserId
+      // Try by login_email
+      const { data: byEmail } = await supabase
+        .from('accounts').select('*').eq('login_email', urlAccountId.toLowerCase()).maybeSingle()
+      return byEmail || null
     },
     enabled: !!urlAccountId && !authAccount,
     staleTime: 60_000,

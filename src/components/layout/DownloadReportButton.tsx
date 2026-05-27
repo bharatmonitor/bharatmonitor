@@ -7,10 +7,22 @@ export default function DownloadReportButton() {
   const { user } = useAuthStore()
 
   async function openReport() {
-    // Try account from hook first
+    // 1. Best case: account already loaded in hook
     let accountId = account?.id || ''
 
-    // If hook hasn't loaded yet, fetch directly from Supabase using user id
+    // 2. Try fetching by account id directly (user.id IS the account id for hardcoded accounts)
+    if (!accountId && user?.id) {
+      try {
+        const { data } = await supabase
+          .from('accounts')
+          .select('id')
+          .eq('id', user.id)
+          .maybeSingle()
+        accountId = data?.id || ''
+      } catch { /* ignore */ }
+    }
+
+    // 3. Try fetching by user_id (for Supabase Auth users)
     if (!accountId && user?.id) {
       try {
         const { data } = await supabase
@@ -22,7 +34,19 @@ export default function DownloadReportButton() {
       } catch { /* ignore */ }
     }
 
-    // Last resort: check localStorage for cached account id
+    // 4. Try login_email match
+    if (!accountId && user?.email) {
+      try {
+        const { data } = await supabase
+          .from('accounts')
+          .select('id')
+          .eq('login_email', user.email.toLowerCase())
+          .maybeSingle()
+        accountId = data?.id || ''
+      } catch { /* ignore */ }
+    }
+
+    // 5. Last resort: localStorage
     if (!accountId) {
       try { accountId = localStorage.getItem('bm_account_id') || '' } catch { /* ignore */ }
     }
