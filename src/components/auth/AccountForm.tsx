@@ -43,17 +43,62 @@ export default function AccountForm({ account, onClose, onSave }: Props) {
     constituency_type: account?.constituency_type || 'lok_sabha',
     state: account?.state || '',
     district: account?.district || '',
-    keywords: account?.keywords || [],
-    tracked_politicians: account?.tracked_politicians || [],
-    tracked_ministries: account?.tracked_ministries || [],
-    tracked_parties: account?.tracked_parties || [],
-    tracked_schemes: account?.tracked_schemes || [],
-    languages: account?.languages || ['english'],
+    keywords: (() => {
+      const kw = account?.keywords
+      if (!kw) return []
+      if (Array.isArray(kw)) return kw
+      // JSONB may come back as-is from Supabase — ensure it's an array
+      if (typeof kw === 'string') { try { return JSON.parse(kw) } catch { return [] } }
+      return []
+    })(),
+    tracked_politicians: (() => {
+      const tp = account?.tracked_politicians
+      if (!tp) return []
+      if (Array.isArray(tp)) return tp
+      if (typeof tp === 'string') { try { return JSON.parse(tp) } catch { return [] } }
+      return []
+    })(),
+    tracked_ministries: (() => {
+      const tm = account?.tracked_ministries
+      if (!tm) return []
+      if (Array.isArray(tm)) return tm
+      if (typeof tm === 'string') { try { return JSON.parse(tm) } catch { return [] } }
+      return []
+    })(),
+    tracked_parties: (() => {
+      const tp = account?.tracked_parties
+      if (!tp) return []
+      if (Array.isArray(tp)) return tp
+      if (typeof tp === 'string') { try { return JSON.parse(tp) } catch { return [] } }
+      return []
+    })(),
+    tracked_schemes: (() => {
+      const ts = account?.tracked_schemes
+      if (!ts) return []
+      if (Array.isArray(ts)) return ts
+      if (typeof ts === 'string') { try { return JSON.parse(ts) } catch { return [] } }
+      return []
+    })(),
+    languages: (() => {
+      const lang = account?.languages
+      if (!lang) return ['english']
+      if (Array.isArray(lang)) return lang.length ? lang : ['english']
+      if (typeof lang === 'string') { try { const p = JSON.parse(lang); return Array.isArray(p) && p.length ? p : ['english'] } catch { return ['english'] } }
+      return ['english']
+    })(),
     alert_prefs: account?.alert_prefs || { red_sms: true, red_push: true, red_email: true, yellow_push: true, yellow_email: false },
     contact_email: account?.contact_email || '',
     contact_phone: account?.contact_phone || '',
     is_active: account?.is_active ?? true,
-    geo_scope: account?.geo_scope || [],
+    // geo_scope: normalize to array — DB may store as object {level,state,cities} from our SQL update
+    geo_scope: (() => {
+      const gs = account?.geo_scope
+      if (!gs) return []
+      if (Array.isArray(gs)) return gs
+      // If it's an object (from SQL), convert to array format AccountForm expects
+      if (typeof gs === 'object' && gs.level) return [{ level: gs.level, name: gs.state || gs.level, state: gs.state }]
+      return []
+    })(),
   })
 
   const [newKeyword, setNewKeyword] = useState('')

@@ -559,8 +559,15 @@ async function fetchFacebookRapid(kw) {
 }
 
 // ─── Gemini sentiment scoring ─────────────────────────────────────────────────
+// Handles 429 rate limit gracefully — returns null so ingest continues without AI
+let _gemini429Until = 0  // timestamp: skip Gemini calls until this time
 async function geminiSentiment(text) {
   if (!GEMINI_KEY) return null
+  // If we hit 429 recently, skip for the retry period
+  if (Date.now() < _gemini429Until) {
+    console.warn('[Gemini] Skipping — rate limited until', new Date(_gemini429Until).toISOString())
+    return null
+  }
   try {
     const prompt = 'Indian political news analyst. Rate this for a politician war room.\nReply ONLY with valid JSON, no markdown: {"bucket":"red|yellow|blue|silver","sentiment":"positive|negative|neutral","tone":-5}\nred=crisis/attack on politician, yellow=opposition threat/developing, blue=positive achievement, silver=neutral/routine\nDetect SARCASM: ironic praise = bucket yellow sentiment negative.\nNews: ' + text.slice(0, 400)
     const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_KEY, {
@@ -572,7 +579,19 @@ async function geminiSentiment(text) {
       }),
       signal: AbortSignal.timeout(10000),
     })
-    if (!r.ok) return null
+    if (r.status === 429) {
+      // Extract retry-after from error body if available, default 60s
+      let retryAfter = 60
+      try {
+        const errBody = await r.json()
+        const retryStr = errBody?.error?.message?.match(/retry in ([\d.]+)s/i)?.[1]
+        if (retryStr) retryAfter = Math.ceil(parseFloat(retryStr)) + 5
+        console.warn(`[Gemini] 429 rate limit — pausing for ${retryAfter}s`)
+      } catch { /* ignore */ }
+      _gemini429Until = Date.now() + retryAfter * 1000
+      return null  // Ingest continues without AI sentiment — items still saved
+    }
+    if (!r.ok) { console.warn('[Gemini] HTTP', r.status); return null }
     const d = await r.json()
     const txt = d?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
     const m = txt.match(/\{[\s\S]*?\}/)

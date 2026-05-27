@@ -9,6 +9,37 @@ import type { Account } from '@/types'
 import type { Tier } from '@/lib/tiers'
 import type { UserRole } from '@/types'
 
+// ─── Normalize account arrays from Supabase JSONB ────────────────────────────
+// Supabase returns JSONB as plain JS objects/arrays, but if stored as JSON strings
+// (e.g. from SQL editor), they need parsing. This ensures all array fields are arrays.
+function normalizeAccount(raw: any): Account {
+  if (!raw) return raw
+  const ensureArray = (v: any, def: any[] = []): any[] => {
+    if (!v) return def
+    if (Array.isArray(v)) return v
+    if (typeof v === 'string') { try { const p = JSON.parse(v); return Array.isArray(p) ? p : def } catch { return def } }
+    return def
+  }
+  const ensureGeoScope = (v: any): any[] => {
+    if (!v) return []
+    if (Array.isArray(v)) return v
+    if (typeof v === 'object' && v.level) return [{ level: v.level, name: v.state || v.level, state: v.state }]
+    if (typeof v === 'string') { try { const p = JSON.parse(v); return Array.isArray(p) ? p : [] } catch { return [] } }
+    return []
+  }
+  return {
+    ...raw,
+    keywords:            ensureArray(raw.keywords, []),
+    tracked_politicians: ensureArray(raw.tracked_politicians, []),
+    tracked_ministries:  ensureArray(raw.tracked_ministries, []),
+    tracked_parties:     ensureArray(raw.tracked_parties, []),
+    tracked_schemes:     ensureArray(raw.tracked_schemes, []),
+    languages:           ensureArray(raw.languages, ['english']),
+    watchlist_handles:   ensureArray(raw.watchlist_handles, []),
+    geo_scope:           ensureGeoScope(raw.geo_scope),
+  } as Account
+}
+
 export interface HardcodedCred {
   id: string
   email: string
@@ -225,7 +256,7 @@ export async function fetchAccount(userId: string): Promise<Account | null> {
   try {
     const { data, error } = await supabase.from('accounts').select('*').or(`user_id.eq.${userId},id.eq.${userId}`).limit(1).maybeSingle()
     if (error) { console.error('[BM] fetchAccount error:', error.message); return null }
-    return data as Account | null
+    return data ? normalizeAccount(data) : null
   } catch (e) { console.error('[BM] fetchAccount exception:', e); return null }
 }
 
@@ -243,7 +274,7 @@ export async function fetchAllAccounts(): Promise<Account[]> {
     if (error) { console.error('[BM] fetchAllAccounts error:', error.message); return Object.values(DEMO_ACCOUNT_MAP) }
     const supabaseIds = new Set((data || []).map((a: any) => a.id))
     const demoFallbacks = Object.values(DEMO_ACCOUNT_MAP).filter(a => !supabaseIds.has(a.id))
-    return [...(data as Account[]), ...demoFallbacks]
+    return [...(data as any[]).map(normalizeAccount), ...demoFallbacks]
   } catch (e) { console.error('[BM] fetchAllAccounts exception:', e); return Object.values(DEMO_ACCOUNT_MAP) }
 }
 
@@ -378,7 +409,7 @@ export async function createAccount(data: Partial<Account>): Promise<Account> {
   }
   const error = insertError
   if (error) throw new Error(error.message)
-  return created as Account
+  return normalizeAccount(created) as Account
 }
 
 export async function triggerIngest(accountId: string, politicianName: string, keywords: string[]): Promise<void> {
