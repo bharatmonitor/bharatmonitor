@@ -299,25 +299,40 @@ const PERSONAS = [
 export default function ReportPage() {
   const [searchParams] = useSearchParams()
   const { data: authAccount } = useAccount()
+
   // When opened in a new tab, useAccount() returns null (no auth session).
   // Fall back to fetching account directly from Supabase using the URL param.
   const urlAccountId = searchParams.get('accountId') || ''
-  const { data: urlAccount } = useQuery({
+
+  const { data: urlAccount, isLoading: accountLoading } = useQuery({
     queryKey: ['report-account-direct', urlAccountId],
     queryFn: async () => {
       if (!urlAccountId) return null
-      const { data } = await supabase.from('accounts').select('*').eq('id', urlAccountId).maybeSingle()
-      return data || null
+      // Try by account id first
+      const { data: byId } = await supabase
+        .from('accounts')
+        .select('*')
+        .eq('id', urlAccountId)
+        .maybeSingle()
+      if (byId) return byId
+      // Fallback: try by user_id
+      const { data: byUserId } = await supabase
+        .from('accounts')
+        .select('*')
+        .eq('user_id', urlAccountId)
+        .maybeSingle()
+      return byUserId || null
     },
     enabled: !!urlAccountId && !authAccount,
     staleTime: 60_000,
+    retry: 2,
   })
 
   // Use auth account if available, otherwise use directly-fetched account
   const account = authAccount || urlAccount
   const accountId = account?.id || urlAccountId
 
-  const { data: feed = [] }          = useFeedItems(accountId)
+  const { data: feed = [] }           = useFeedItems(accountId)
   const { data: contradictions = [] } = useContradictions(accountId)
   const { data: competitors = [] }    = useCompetitors(account)
   const { data: trends = [] }         = useTrendMetrics(accountId)
@@ -327,12 +342,22 @@ export default function ReportPage() {
   const { data: analysis }            = useAnalysisReport(accountId)
 
   // Show loading state while account is being fetched
-  if (urlAccountId && !account) {
+  if (urlAccountId && !account && accountLoading) {
     return (
-      <div style={{ background: DARK, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: '11px', color: '#f97316' }}>
-          ⚙ LOADING REPORT DATA…
-        </div>
+      <div style={{ background: DARK, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: '11px', color: '#f97316' }}>⚙ LOADING REPORT DATA…</div>
+        <div style={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: '9px', color: '#545f78' }}>Fetching account: {urlAccountId}</div>
+      </div>
+    )
+  }
+
+  // No account found at all — show error
+  if (urlAccountId && !account && !accountLoading) {
+    return (
+      <div style={{ background: DARK, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: '11px', color: '#f03e3e' }}>⚠ ACCOUNT NOT FOUND</div>
+        <div style={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: '9px', color: '#545f78' }}>ID: {urlAccountId}</div>
+        <div style={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: '9px', color: '#545f78' }}>Try opening the report from the dashboard while logged in.</div>
       </div>
     )
   }

@@ -1,10 +1,32 @@
 import { useAccount } from '@/hooks/useData'
+import { useAuthStore } from '@/store'
+import { supabase } from '@/lib/supabase'
 
 export default function DownloadReportButton() {
   const { data: account } = useAccount()
+  const { user } = useAuthStore()
 
-  function openReport() {
-    const accountId = account?.id || ''
+  async function openReport() {
+    // Try account from hook first
+    let accountId = account?.id || ''
+
+    // If hook hasn't loaded yet, fetch directly from Supabase using user id
+    if (!accountId && user?.id) {
+      try {
+        const { data } = await supabase
+          .from('accounts')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        accountId = data?.id || ''
+      } catch { /* ignore */ }
+    }
+
+    // Last resort: check localStorage for cached account id
+    if (!accountId) {
+      try { accountId = localStorage.getItem('bm_account_id') || '' } catch { /* ignore */ }
+    }
+
     const url = accountId ? `/report?accountId=${accountId}` : '/report'
     window.open(url, '_blank', 'noopener,noreferrer')
   }
