@@ -1,64 +1,28 @@
 import { useAccount } from '@/hooks/useData'
 import { useAuthStore } from '@/store'
-import { supabase } from '@/lib/supabase'
 
 export default function DownloadReportButton() {
   const { data: account } = useAccount()
   const { user } = useAuthStore()
 
-  async function openReport() {
-    // 1. Best case: account already loaded in hook
-    let accountId = account?.id || ''
+  function openReport() {
+    // Priority order for getting accountId:
+    // 1. account hook (already loaded)
+    // 2. localStorage (set on login in AuthPage)
+    // 3. user.id (which equals account_id for hardcoded-cred accounts)
+    const accountId = account?.id
+      || (typeof localStorage !== 'undefined' ? localStorage.getItem('bm_account_id') || '' : '')
+      || user?.id
+      || ''
 
-    // 2. Try fetching by account id directly (user.id IS the account id for hardcoded accounts)
-    if (!accountId && user?.id) {
-      try {
-        const { data } = await supabase
-          .from('accounts')
-          .select('id')
-          .eq('id', user.id)
-          .maybeSingle()
-        accountId = data?.id || ''
-      } catch { /* ignore */ }
-    }
-
-    // 3. Try fetching by user_id (for Supabase Auth users)
-    if (!accountId && user?.id) {
-      try {
-        const { data } = await supabase
-          .from('accounts')
-          .select('id')
-          .eq('user_id', user.id)
-          .maybeSingle()
-        accountId = data?.id || ''
-      } catch { /* ignore */ }
-    }
-
-    // 4. Try login_email match
-    if (!accountId && user?.email) {
-      try {
-        const { data } = await supabase
-          .from('accounts')
-          .select('id')
-          .eq('login_email', user.email.toLowerCase())
-          .maybeSingle()
-        accountId = data?.id || ''
-      } catch { /* ignore */ }
-    }
-
-    // 5. Last resort: localStorage
-    if (!accountId) {
-      try { accountId = localStorage.getItem('bm_account_id') || '' } catch { /* ignore */ }
-    }
-
-    const url = accountId ? `/report?accountId=${accountId}` : '/report'
+    const url = accountId ? `/report?accountId=${encodeURIComponent(accountId)}` : '/report'
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   return (
     <button
       onClick={openReport}
-      title="Download full intelligence report as PDF"
+      title="Open full intelligence report"
       style={{
         display: 'flex', alignItems: 'center', gap: '5px',
         fontFamily: '"IBM Plex Mono", monospace', fontSize: '8px',

@@ -308,17 +308,24 @@ export default function ReportPage() {
     queryKey: ['report-account-direct', urlAccountId],
     queryFn: async () => {
       if (!urlAccountId) return null
-      // Try by account id (BM-2026-XXXX format)
-      const { data: byId } = await supabase
+      // Import supabaseAdmin for service-role access (bypasses RLS)
+      const { supabaseAdmin } = await import('@/lib/supabase')
+      const client = supabaseAdmin || supabase
+
+      // Try by account id (BM-2026-XXXX format) — most common case
+      const { data: byId } = await client
         .from('accounts').select('*').eq('id', urlAccountId).maybeSingle()
       if (byId) return byId
-      // Try by user_id (numeric string from Supabase Auth)
-      const { data: byUserId } = await supabase
+
+      // Try by user_id
+      const { data: byUserId } = await client
         .from('accounts').select('*').eq('user_id', urlAccountId).maybeSingle()
       if (byUserId) return byUserId
+
       // Try by login_email
-      const { data: byEmail } = await supabase
-        .from('accounts').select('*').eq('login_email', urlAccountId.toLowerCase()).maybeSingle()
+      const { data: byEmail } = await client
+        .from('accounts').select('*')
+        .eq('login_email', urlAccountId.toLowerCase()).maybeSingle()
       return byEmail || null
     },
     enabled: !!urlAccountId && !authAccount,

@@ -404,15 +404,13 @@ async function fetchTwitterRapid(kw) {
   if (!RAPIDAPI_KEY) return []
   try {
     const q = encodeURIComponent(kw + ' india')
-    // Twitter135: try search endpoint
-    // Try twitter135 search - multiple possible endpoint formats
-    const url = `https://twitter135.p.rapidapi.com/v2/Search/?q=${q}&count=20&result_type=mixed&lang=en`
-    console.log(`[TwitterRapid] fetching: ${url.slice(0,80)}`)
+    // twitter-api45 (subscribed on RapidAPI) — replaces dead twitter135
+    const url = `https://twitter-api45.p.rapidapi.com/search.php?query=${q}&searchtype=Top`
+    console.log(`[TwitterRapid] fetching twitter-api45: ${url.slice(0,80)}`)
     const r = await fetch(url, {
       headers: {
-        'x-rapidapi-host': 'twitter135.p.rapidapi.com',
+        'x-rapidapi-host': 'twitter-api45.p.rapidapi.com',
         'x-rapidapi-key': RAPIDAPI_KEY,
-        'Content-Type': 'application/json',
       },
       signal: AbortSignal.timeout(15000),
     })

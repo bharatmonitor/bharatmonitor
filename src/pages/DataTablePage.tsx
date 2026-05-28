@@ -345,6 +345,8 @@ export default function DataTablePage() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const { data: account } = useAccount()
+  const { user } = useAuthStore()
+  const isGodAccount = user?.role === 'god' || account?.id === 'god-account'
   const accountId = account?.id ?? ''
 
   const { data: allData = [], isLoading } = useAllFeedData(accountId)
@@ -478,8 +480,25 @@ export default function DataTablePage() {
 
       <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
 
-        {/* ── Universal search (advanced search syntax) ───────────────────────────── */}
-        <div style={{ background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: '10px', padding: '14px 16px', marginBottom: '12px' }}>
+        {/* ── Platform sources panel (all users) ──────────────────────────────────── */}
+        <div style={{ background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: '10px', padding: '12px 16px', marginBottom: '12px' }}>
+          <div style={{ fontFamily: mono, fontSize: '8px', color: 'var(--t2)', letterSpacing: '1px', marginBottom: '10px' }}>DATA SOURCES TRACKED</div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {Object.entries(stats.byPlatform || {}).filter(([,v]) => (v as number) > 0).map(([plat, count]) => (
+              <div key={plat} style={{ padding: '6px 12px', borderRadius: '6px', background: `${PLAT_COLOR[plat] || '#8892a4'}12`, border: `1px solid ${PLAT_COLOR[plat] || '#8892a4'}30`, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: PLAT_COLOR[plat] || '#8892a4' }} />
+                <span style={{ fontFamily: mono, fontSize: '8px', color: PLAT_COLOR[plat] || '#8892a4', textTransform: 'uppercase' }}>{plat}</span>
+                <span style={{ fontFamily: mono, fontSize: '9px', color: 'var(--t0)', fontWeight: 700 }}>{count as number}</span>
+              </div>
+            ))}
+            {Object.keys(stats.byPlatform || {}).filter(k => (stats.byPlatform[k] || 0) > 0).length === 0 && (
+              <span style={{ fontFamily: mono, fontSize: '9px', color: 'var(--t3)' }}>No data yet — trigger an ingest from the dashboard</span>
+            )}
+          </div>
+        </div>
+
+        {/* ── Universal search (advanced search syntax — admin only) ──────────────── */}
+        {isGodAccount && <div style={{ background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: '10px', padding: '14px 16px', marginBottom: '12px' }}>
           <div style={{ fontFamily: mono, fontSize: '8px', color: 'var(--acc)', letterSpacing: '1px', marginBottom: '8px' }}>◈ UNIVERSAL SEARCH</div>
           <input
             value={rawSearch}

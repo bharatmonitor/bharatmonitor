@@ -27,6 +27,8 @@ export default function AuthPage() {
       const cred = validateHardcodedCred(email, password)
       if (cred) {
         setUser({ id: cred.id, email: cred.email, role: cred.role, created_at: new Date().toISOString() })
+        // Store accountId for report button — cred.account_id is the DB row id
+        try { localStorage.setItem('bm_account_id', cred.account_id) } catch { /* ignore */ }
         setTier(cred.tier as Tier)
         toast.success(`Welcome${cred.name ? ', ' + cred.name : ''}`)
         navigate(cred.role === 'god' ? '/god' : '/dashboard')
@@ -37,6 +39,8 @@ export default function AuthPage() {
       const supabaseCred = await validateSupabaseStoredCred(email, password)
       if (supabaseCred) {
         setUser({ id: supabaseCred.id, email: supabaseCred.email, role: supabaseCred.role, created_at: new Date().toISOString() })
+        // Store accountId for report button
+        try { localStorage.setItem('bm_account_id', supabaseCred.account_id) } catch { /* ignore */ }
         setTier(supabaseCred.tier as Tier)
         toast.success(`Welcome, ${supabaseCred.name}`)
         navigate(supabaseCred.role === 'god' ? '/god' : '/dashboard')

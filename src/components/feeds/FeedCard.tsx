@@ -117,6 +117,9 @@ export default function FeedCard({ item, onClick, selected }: Props) {
         {item.topic_tags.slice(0, 2).map(t => (
           <span key={t} style={{ fontSize: '7px', padding: '1px 4px', borderRadius: '2px', fontFamily: 'IBM Plex Mono, monospace', background: 'rgba(34,211,160,0.1)', color: 'var(--grn)', border: '1px solid rgba(34,211,160,0.18)' }}>{t}</span>
         ))}
+        {item.keyword && (
+          <span style={{ fontSize: '7px', padding: '1px 5px', borderRadius: '2px', fontFamily: 'IBM Plex Mono, monospace', background: 'rgba(249,115,22,0.08)', color: '#f97316', border: '1px solid rgba(249,115,22,0.2)' }}>⚡ {item.keyword.length > 18 ? item.keyword.substring(0,16)+'…' : item.keyword}</span>
+        )}
         {item.language !== 'english' && (
           <span style={{ fontSize: '7px', padding: '1px 4px', borderRadius: '2px', fontFamily: 'IBM Plex Mono, monospace', background: 'var(--s3)', color: 'var(--t2)', border: '1px solid var(--b1)', textTransform: 'uppercase' }}>{item.language.substring(0, 2)}</span>
         )}

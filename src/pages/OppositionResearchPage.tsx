@@ -170,14 +170,17 @@ export default function OppositionResearchPage() {
   const { data: account } = useAccount()
 
   const [politician, setPolitician] = useState('')
+  const [extraPoliticians, setExtraPoliticians] = useState<string[]>([])
   const [topic, setTopic]           = useState('')
   const [yearsBack, setYearsBack]   = useState(10)
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState('')
+  const [results, setResults]       = useState<ResearchResult[]>([])
   const [result, setResult]         = useState<ResearchResult | null>(null)
   const [activeTab, setActiveTab]   = useState<'overview' | 'contradictions' | 'statements' | 'strategy'>('overview')
   const [history, setHistory]       = useState<{ politician: string; topic: string }[]>([])
   const [quickGroup, setQuickGroup] = useState<'vds' | 'national'>('vds')
+  const [activeResultIdx, setActiveResultIdx] = useState(0)
 
   async function runResearch(pol?: string, top?: string) {
     const p = pol || politician, t = top || topic
@@ -185,17 +188,24 @@ export default function OppositionResearchPage() {
     setLoading(true)
     setError('')
     setResult(null)
+    setResults([])
+    // Run all politicians in parallel
+    const allPols = [p, ...extraPoliticians.filter(ep => ep.trim() && ep !== p)]
     try {
       const authKey = SERVICE_KEY || ANON_KEY
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/bm-opposition-research`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authKey}`, 'apikey': ANON_KEY },
-        body: JSON.stringify({ politician: p, topic: t, accountId: account?.id || 'god-account', yearsBack }),
-        signal: AbortSignal.timeout(60_000),
-      })
-      const data = await res.json()
-      if (data.ok) {
-        setResult(data)
+      const allRes = await Promise.all(allPols.map(pol =>
+        fetch(`${SUPABASE_URL}/functions/v1/bm-opposition-research`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authKey}`, 'apikey': ANON_KEY },
+          body: JSON.stringify({ politician: pol, topic: t, accountId: account?.id || 'god-account', yearsBack }),
+          signal: AbortSignal.timeout(60_000),
+        }).then(r => r.json()).catch(e => ({ ok: false, error: e.message, politician: pol, topic: t }))
+      ))
+      const successResults = allRes.filter(d => d.ok)
+      if (successResults.length > 0) {
+        setResults(successResults)
+        setResult(successResults[0])
+        setActiveResultIdx(0)
         setHistory(h => [{ politician: p, topic: t }, ...h.filter(x => !(x.politician === p && x.topic === t))].slice(0, 8))
         setActiveTab('overview')
       } else {
@@ -234,10 +244,28 @@ export default function OppositionResearchPage() {
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: '14px', padding: '20px 22px', marginBottom: '20px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '10px', alignItems: 'end', marginBottom: '14px' }}>
             <div>
-              <div style={{ fontFamily: mono, fontSize: '7px', color: T3, letterSpacing: '1px', marginBottom: '5px' }}>POLITICIAN</div>
+              <div style={{ fontFamily: mono, fontSize: '7px', color: T3, letterSpacing: '1px', marginBottom: '5px' }}>POLITICIAN (PRIMARY)</div>
               <input value={politician} onChange={e => setPolitician(e.target.value)} onKeyDown={e => e.key === 'Enter' && runResearch()}
                 placeholder="e.g. Vishnu Deo Sai"
                 style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: '7px', color: T0, fontFamily: mono, fontSize: '11px', outline: 'none', boxSizing: 'border-box' }} />
+              {/* Additional politicians */}
+              <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {extraPoliticians.map((ep, i) => (
+                  <div key={i} style={{ display: 'flex', gap: '4px' }}>
+                    <input value={ep} onChange={e => { const n=[...extraPoliticians]; n[i]=e.target.value; setExtraPoliticians(n) }}
+                      placeholder={`+ Politician ${i+2}`}
+                      style={{ flex:1, padding: '6px 10px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: '6px', color: T0, fontFamily: mono, fontSize: '10px', outline: 'none' }} />
+                    <button onClick={() => setExtraPoliticians(extraPoliticians.filter((_,j)=>j!==i))}
+                      style={{ padding: '6px 8px', background: 'transparent', border: `1px solid ${BORDER}`, borderRadius: '6px', color: T3, cursor: 'pointer', fontSize: '12px' }}>×</button>
+                  </div>
+                ))}
+                {extraPoliticians.length < 4 && (
+                  <button onClick={() => setExtraPoliticians([...extraPoliticians, ''])}
+                    style={{ padding: '4px 10px', background: 'transparent', border: `1px solid ${BORDER}`, borderRadius: '6px', color: T3, fontFamily: mono, fontSize: '8px', cursor: 'pointer', textAlign: 'left' }}>
+                    + Add another politician (compare up to 5)
+                  </button>
+                )}
+              </div>
             </div>
             <div>
               <div style={{ fontFamily: mono, fontSize: '7px', color: T3, letterSpacing: '1px', marginBottom: '5px' }}>TOPIC / ISSUE</div>
@@ -334,6 +362,18 @@ export default function OppositionResearchPage() {
 
         {result && (
           <div>
+            {/* Multi-politician result tabs */}
+            {results.length > 1 && (
+              <div style={{ display: 'flex', gap: '4px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                {results.map((r, i) => (
+                  <button key={i} onClick={() => { setResult(r); setActiveResultIdx(i); setActiveTab('overview') }}
+                    style={{ padding: '6px 14px', borderRadius: '6px', border: `1px solid ${activeResultIdx===i ? RED+'60' : BORDER}`, background: activeResultIdx===i ? RED+'10' : 'transparent', color: activeResultIdx===i ? RED : T2, fontFamily: mono, fontSize: '9px', cursor: 'pointer' }}>
+                    {r.politician} <span style={{ opacity: 0.6 }}>({r.stats?.vulnerabilityScore || 0}%)</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Stats bar */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '10px', marginBottom: '16px' }}>
               {[
