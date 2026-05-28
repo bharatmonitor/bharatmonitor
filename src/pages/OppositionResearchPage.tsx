@@ -209,7 +209,7 @@ export default function OppositionResearchPage() {
         setHistory(h => [{ politician: p, topic: t }, ...h.filter(x => !(x.politician === p && x.topic === t))].slice(0, 8))
         setActiveTab('overview')
       } else {
-        setError(data.error || 'Research failed')
+        setError(allRes[0]?.error || 'Research failed — no results returned')
       }
     } catch (e: any) {
       setError(e.message)

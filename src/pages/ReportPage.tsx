@@ -435,11 +435,10 @@ export default function ReportPage() {
   }, [feed, account?.keywords])
 
   // ── Section numbering ─────────────────────────────────────────────────────
-  let sectionNum = 0
-  const S = (title: string, color?: string) => {
-    sectionNum++
-    return <SectionHeader n={String(sectionNum).padStart(2,'0')} title={title} color={color} />
-  }
+  // Note: using a plain function (not a hook) - sectionNum resets each render which is fine
+  // for display purposes only
+  const S = (n: number, title: string, color?: string) =>
+    <SectionHeader n={String(n).padStart(2,'0')} title={title} color={color} />
 
   return (
     <div style={{ background:DARK, color:T0, minHeight:'100vh', fontFamily:'system-ui, sans-serif' }}>
@@ -527,7 +526,7 @@ export default function ReportPage() {
             SECTION 01 — ACCOUNT PARAMETERS
         ══════════════════════════════════════════════════════════════ */}
         <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-          {S('ACCOUNT PARAMETERS')}
+          {S(1, 'ACCOUNT PARAMETERS')}
 
           {/* Profile */}
           <Card style={{ marginBottom:'12px' }}>
@@ -652,7 +651,7 @@ export default function ReportPage() {
             SECTION 02 — EXECUTIVE SUMMARY
         ══════════════════════════════════════════════════════════════ */}
         <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-          {S('EXECUTIVE SUMMARY')}
+          {S(2, 'EXECUTIVE SUMMARY')}
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', marginBottom:'12px' }}>
             <Card>
               <div style={{ fontFamily:mono, fontSize:'8px', color:T3, letterSpacing:'1px', marginBottom:'8px' }}>SITUATION</div>
@@ -692,7 +691,7 @@ export default function ReportPage() {
         ══════════════════════════════════════════════════════════════ */}
         {stats.crisisItems.length > 0 && (
           <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-            {S('CRISIS SIGNALS', RED)}
+            {S(3, 'CRISIS SIGNALS', RED)}
             <Card style={{ borderLeft:`3px solid ${RED}` }}>
               {stats.crisisItems.map((item,i) => <FeedItem key={item.id||i} item={item} />)}
             </Card>
@@ -704,7 +703,7 @@ export default function ReportPage() {
         ══════════════════════════════════════════════════════════════ */}
         {stats.devItems.length > 0 && (
           <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-            {S('DEVELOPING STORIES', YELLOW)}
+            {S(4, 'DEVELOPING STORIES', YELLOW)}
             <Card style={{ borderLeft:`3px solid ${YELLOW}` }}>
               {stats.devItems.map((item,i) => <FeedItem key={item.id||i} item={item} />)}
             </Card>
@@ -715,7 +714,7 @@ export default function ReportPage() {
             SECTION 05 — SENTIMENT ANALYSIS
         ══════════════════════════════════════════════════════════════ */}
         <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-          {S('SENTIMENT ANALYSIS')}
+          {S(5, 'SENTIMENT ANALYSIS')}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'10px', marginBottom:'12px' }}>
             <KPI label="POSITIVE"    value={stats.pos}         color={GREEN}  />
             <KPI label="NEGATIVE"    value={stats.neg}         color={RED}    />
@@ -746,7 +745,7 @@ export default function ReportPage() {
             SECTION 06 — KEYWORD PERFORMANCE
         ══════════════════════════════════════════════════════════════ */}
         <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-          {S('KEYWORD PERFORMANCE')}
+          {S(6, 'KEYWORD PERFORMANCE')}
           <Card>
             {stats.sortedKw.length > 0
               ? stats.sortedKw.map(([kw, d]) => (
@@ -770,7 +769,7 @@ export default function ReportPage() {
             SECTION 07 — PLATFORM COVERAGE
         ══════════════════════════════════════════════════════════════ */}
         <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-          {S('PLATFORM COVERAGE')}
+          {S(7, 'PLATFORM COVERAGE')}
           <Card>
             {stats.sortedPlats.map(([p,n]) => (
               <Bar key={p} label={p.toUpperCase()} value={n} max={stats.sortedPlats[0]?.[1]||1} color={PLAT[p]||T2} />
@@ -782,7 +781,7 @@ export default function ReportPage() {
             SECTION 08 — TOP SOURCES
         ══════════════════════════════════════════════════════════════ */}
         <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-          {S('TOP SOURCES')}
+          {S(8, 'TOP SOURCES')}
           <Card>
             {stats.sortedSources.map(([s,n]) => (
               <Bar key={s} label={s} value={n} max={stats.sortedSources[0]?.[1]||1} color={ACC} />
@@ -795,7 +794,7 @@ export default function ReportPage() {
         ══════════════════════════════════════════════════════════════ */}
         {stats.sortedGeo.length > 0 && (
           <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-            {S('GEOGRAPHIC SIGNALS')}
+            {S(9, 'GEOGRAPHIC SIGNALS')}
             <Card>
               {stats.sortedGeo.map(([g,n]) => {
                 const geoFeed = feed.filter(f=>(f.geo_tags||[]).includes(g))
@@ -813,7 +812,7 @@ export default function ReportPage() {
         ══════════════════════════════════════════════════════════════ */}
         {stats.sortedTopics.length > 0 && (
           <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-            {S('TOPIC COVERAGE')}
+            {S(10, 'TOPIC COVERAGE')}
             <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px' }}>
               {stats.sortedTopics.map(([t,n]) => (
                 <Card key={t} style={{ textAlign:'center' }}>
@@ -831,7 +830,7 @@ export default function ReportPage() {
             SECTION 11 — AUDIENCE PERSONAS
         ══════════════════════════════════════════════════════════════ */}
         <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-          {S('AUDIENCE PERSONAS')}
+          {S(11, 'AUDIENCE PERSONAS')}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'10px', marginBottom:'12px' }}>
             {personaStats.map(p => (
               <div key={p.id} style={{ background:CARD, border:`1px solid ${p.color}25`, borderRadius:'8px', padding:'12px' }}>
@@ -858,7 +857,7 @@ export default function ReportPage() {
         ══════════════════════════════════════════════════════════════ */}
         {schemes.length > 0 && (
           <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-            {S('SCHEME TRACKING')}
+            {S(12, 'SCHEME TRACKING')}
             <Card>
               {schemes.map((s:any) => (
                 <div key={s.scheme_name} style={{ padding:'7px 0', borderBottom:`1px solid rgba(255,255,255,0.04)`, display:'flex', alignItems:'center', gap:'12px' }}>
@@ -879,7 +878,7 @@ export default function ReportPage() {
         ══════════════════════════════════════════════════════════════ */}
         {trendPoints.length > 0 && (
           <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-            {S('SENTIMENT TREND — 7-DAY DETAIL')}
+            {S(13, 'SENTIMENT TREND — 7-DAY DETAIL')}
             <Card>
               <div style={{ display:'grid', gridTemplateColumns:`repeat(${trendPoints.length},1fr)`, gap:'8px' }}>
                 {trendPoints.map((p:any,i:number) => {
@@ -909,7 +908,7 @@ export default function ReportPage() {
         ══════════════════════════════════════════════════════════════ */}
         {pulse && (
           <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-            {S('CONSTITUENCY PULSE')}
+            {S(14, 'CONSTITUENCY PULSE')}
             <div style={{ display:'grid', gridTemplateColumns:'auto 1fr', gap:'12px' }}>
               <Card style={{ textAlign:'center', minWidth:'120px' }}>
                 <div style={{ fontFamily:mono, fontSize:'7px', color:T3, marginBottom:'4px' }}>OVERALL SENTIMENT</div>
@@ -940,7 +939,7 @@ export default function ReportPage() {
             SECTION 15 — AI INTELLIGENCE BRIEF
         ══════════════════════════════════════════════════════════════ */}
         <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-          {S('AI INTELLIGENCE BRIEF', BLUE)}
+          {S(15, 'AI INTELLIGENCE BRIEF', BLUE)}
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', marginBottom:'12px' }}>
             <Card>
               <div style={{ fontFamily:mono, fontSize:'8px', color:BLUE, letterSpacing:'1px', marginBottom:'8px' }}>SITUATION SUMMARY</div>
@@ -976,7 +975,7 @@ export default function ReportPage() {
         ══════════════════════════════════════════════════════════════ */}
         {stats.posItems.length > 0 && (
           <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-            {S('POSITIVE COVERAGE', GREEN)}
+            {S(16, 'POSITIVE COVERAGE', GREEN)}
             <Card style={{ borderLeft:`3px solid ${GREEN}` }}>
               {stats.posItems.map((item,i) => <FeedItem key={item.id||i} item={item} />)}
             </Card>
@@ -988,7 +987,7 @@ export default function ReportPage() {
         ══════════════════════════════════════════════════════════════ */}
         {stats.negItems.length > 0 && (
           <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-            {S('NEGATIVE COVERAGE — MONITOR', RED)}
+            {S(17, 'NEGATIVE COVERAGE — MONITOR', RED)}
             <Card style={{ borderLeft:`3px solid ${RED}` }}>
               {stats.negItems.map((item,i) => <FeedItem key={item.id||i} item={item} />)}
             </Card>
@@ -1000,7 +999,7 @@ export default function ReportPage() {
         ══════════════════════════════════════════════════════════════ */}
         {kwGaps.length > 0 && (
           <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-            {S('KEYWORD COVERAGE GAPS', YELLOW)}
+            {S(18, 'KEYWORD COVERAGE GAPS', YELLOW)}
             <Card>
               {kwGaps.map(g => (
                 <div key={g.kw} style={{ padding:'7px 10px', marginBottom:'6px', background:g.gap?RED+'08':CARD2, border:`1px solid ${g.gap?RED+'25':BORDER}`, borderRadius:'6px', display:'flex', alignItems:'center', gap:'10px' }}>
@@ -1021,7 +1020,7 @@ export default function ReportPage() {
         ══════════════════════════════════════════════════════════════ */}
         {competitors.length > 0 && (
           <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-            {S('COMPETITOR INTELLIGENCE', PURPLE)}
+            {S(19, 'COMPETITOR INTELLIGENCE', PURPLE)}
             {(competitors as any[]).map((c:any) => {
               const lastName = c.politician.name.split(' ').slice(-1)[0].toLowerCase()
               const cf = feed.filter(f=>f.headline.toLowerCase().includes(lastName))
@@ -1063,7 +1062,7 @@ export default function ReportPage() {
         ══════════════════════════════════════════════════════════════ */}
         {contradictions.length > 0 && (
           <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
-            {S('AI CONTRADICTION INTELLIGENCE', YELLOW)}
+            {S(20, 'AI CONTRADICTION INTELLIGENCE', YELLOW)}
             {(contradictions as any[]).slice(0,8).map((c:any) => (
               <Card key={c.id} style={{ marginBottom:'10px', borderLeft:`3px solid ${YELLOW}` }}>
                 <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px' }}>
