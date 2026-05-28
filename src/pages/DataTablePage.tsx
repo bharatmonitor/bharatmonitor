@@ -345,7 +345,6 @@ export default function DataTablePage() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const { data: account } = useAccount()
-  const { user } = useAuthStore()
   const isGodAccount = user?.role === 'god' || account?.id === 'god-account'
   const accountId = account?.id ?? ''
 
@@ -498,7 +497,7 @@ export default function DataTablePage() {
         </div>
 
         {/* ── Universal search (advanced search syntax — admin only) ──────────────── */}
-        {isGodAccount && <div style={{ background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: '10px', padding: '14px 16px', marginBottom: '12px' }}>
+        <div style={{ background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: '10px', padding: '14px 16px', marginBottom: '12px' }}>
           <div style={{ fontFamily: mono, fontSize: '8px', color: 'var(--acc)', letterSpacing: '1px', marginBottom: '8px' }}>◈ UNIVERSAL SEARCH</div>
           <input
             value={rawSearch}
