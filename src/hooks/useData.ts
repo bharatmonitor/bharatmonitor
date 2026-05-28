@@ -75,9 +75,20 @@ export function useFeedItems(accountId: string) {
         contradiction: i.contradictions?.[0] || undefined,
       }))
       const seen = new Set<string>()
-      return [...bm, ...fi]
+      const merged = [...bm, ...fi]
         .filter(i => { const k = i.url || i.id; if (seen.has(k)) return false; seen.add(k); return true })
         .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
+
+      // Apply excluded_keywords filter from account settings
+      // Fetch excluded keywords from the accounts table
+      const { data: acctData } = await supabase
+        .from('accounts').select('excluded_keywords').eq('id', accountId).maybeSingle()
+      const excluded: string[] = acctData?.excluded_keywords || []
+      if (excluded.length === 0) return merged
+      return merged.filter(item => {
+        const text = (item.headline + ' ' + (item.keyword || '')).toLowerCase()
+        return !excluded.some((ex: string) => text.includes(ex.toLowerCase()))
+      })
     },
     enabled: !!accountId,
     refetchInterval: 3 * 60_000,

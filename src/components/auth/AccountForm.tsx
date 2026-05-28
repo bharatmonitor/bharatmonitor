@@ -86,6 +86,13 @@ export default function AccountForm({ account, onClose, onSave }: Props) {
       if (typeof lang === 'string') { try { const p = JSON.parse(lang); return Array.isArray(p) && p.length ? p : ['english'] } catch { return ['english'] } }
       return ['english']
     })(),
+    excluded_keywords: (() => {
+      const ek = (account as any)?.excluded_keywords
+      if (!ek) return []
+      if (Array.isArray(ek)) return ek
+      if (typeof ek === 'string') { try { return JSON.parse(ek) } catch { return [] } }
+      return []
+    })(),
     alert_prefs: account?.alert_prefs || { red_sms: true, red_push: true, red_email: true, yellow_push: true, yellow_email: false },
     contact_email: account?.contact_email || '',
     contact_phone: account?.contact_phone || '',
@@ -102,6 +109,7 @@ export default function AccountForm({ account, onClose, onSave }: Props) {
   })
 
   const [newKeyword, setNewKeyword] = useState('')
+  const [newExcludeKeyword, setNewExcludeKeyword] = useState('')
   const [newPolitician, setNewPolitician] = useState({ name: '', party: '', role: '', is_competitor: true })
 
   function setField<K extends keyof Account>(key: K, value: Account[K]) {
@@ -122,6 +130,12 @@ export default function AccountForm({ account, onClose, onSave }: Props) {
     if (!newKeyword.trim()) return
     setField('keywords', [...(form.keywords || []), newKeyword.trim()])
     setNewKeyword('')
+  }
+  function addExcludeKeyword() {
+    const kw = newExcludeKeyword.trim()
+    if (!kw || (form.excluded_keywords || []).includes(kw)) return
+    setField('excluded_keywords', [...(form.excluded_keywords || []), kw])
+    setNewExcludeKeyword('')
   }
 
   function addPolitician() {
@@ -263,6 +277,26 @@ export default function AccountForm({ account, onClose, onSave }: Props) {
                     <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 8px', borderRadius: '20px', background: '#7c6dfa15', border: '1px solid #7c6dfa25', color: 'var(--acc)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px' }}>
                       {k}
                       <button onClick={() => setField('keywords', (form.keywords || []).filter(x => x !== k))} style={{ background: 'none', border: 'none', color: 'var(--acc)', cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Excluded Keywords */}
+              <div>
+                <div className="field-label" style={{ marginBottom: '4px' }}>EXCLUDED KEYWORDS</div>
+                <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '8px', color: 'var(--t3)', marginBottom: '8px' }}>
+                  Items matching these keywords will be hidden from your feed.
+                </div>
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                  <input value={newExcludeKeyword} onChange={e => setNewExcludeKeyword(e.target.value)} onKeyDown={e => e.key === 'Enter' && addExcludeKeyword()} placeholder="e.g. Mamata Banerjee" />
+                  <button className="btn-secondary" onClick={addExcludeKeyword} style={{ padding: '8px 14px', whiteSpace: 'nowrap', fontSize: '9px', border: '1px solid rgba(240,62,62,0.3)', background: 'rgba(240,62,62,0.06)', color: 'var(--red)' }}>EXCLUDE</button>
+                </div>
+                <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                  {(form.excluded_keywords || []).map((k: string) => (
+                    <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 8px', borderRadius: '20px', background: 'rgba(240,62,62,0.08)', border: '1px solid rgba(240,62,62,0.2)', color: 'var(--red)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px' }}>
+                      ✕ {k}
+                      <button onClick={() => setField('excluded_keywords', (form.excluded_keywords || []).filter((x: string) => x !== k))} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
                     </span>
                   ))}
                 </div>

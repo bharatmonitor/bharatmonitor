@@ -60,6 +60,7 @@ export default function TrackPage() {
 
   const [activeTab, setActiveTab] = useState<'keywords' | 'watchlist' | 'national' | 'sources'>('keywords')
   const [newKeyword, setNewKeyword] = useState('')
+  const [newExcludeKw, setNewExcludeKw] = useState('')
   const [newHandle, setNewHandle]   = useState('')
   const [newHandleName, setNewHandleName] = useState('')
   const [newHandlePlatform, setNewHandlePlatform] = useState<'twitter' | 'bluesky' | 'all'>('twitter')
@@ -67,8 +68,9 @@ export default function TrackPage() {
   const [fetchingNational, setFetchingNational] = useState(false)
   const [lastNationalCount, setLastNationalCount] = useState(0)
 
-  const keywords       = account?.keywords || []
-  const watchlist      = account?.watchlist_handles || []
+  const keywords        = account?.keywords || []
+  const excludedKeywords = (account as any)?.excluded_keywords || []
+  const watchlist       = account?.watchlist_handles || []
 
   // Keyword stats from feed
   const keywordStats = useMemo(() => keywords.map(kw => {
@@ -98,6 +100,22 @@ export default function TrackPage() {
   async function removeKeyword(kw: string) {
     try {
       await updateAccount.mutateAsync({ keywords: keywords.filter(k => k !== kw) } as any)
+    } catch (e: any) { toast.error(e.message) }
+  }
+
+  async function addExcludeKeyword() {
+    const kw = newExcludeKw.trim()
+    if (!kw || excludedKeywords.includes(kw)) return
+    try {
+      await updateAccount.mutateAsync({ excluded_keywords: [...excludedKeywords, kw] } as any)
+      setNewExcludeKw('')
+      toast.success(`Excluded: ${kw}`)
+    } catch (e: any) { toast.error(e.message) }
+  }
+
+  async function removeExcludeKeyword(kw: string) {
+    try {
+      await updateAccount.mutateAsync({ excluded_keywords: excludedKeywords.filter((k: string) => k !== kw) } as any)
     } catch (e: any) { toast.error(e.message) }
   }
 
@@ -251,8 +269,42 @@ export default function TrackPage() {
               </Section>
             </div>
 
-            {/* Right: tips */}
+            {/* Excluded Keywords */}
             <div>
+              <Section title="EXCLUDED KEYWORDS" badge={excludedKeywords.length} accent={RED}>
+                <div style={{ fontFamily: mono, fontSize: '9px', color: T3, lineHeight: 1.8, marginBottom: '12px' }}>
+                  Feed items matching these keywords are hidden from your dashboard. Use this to filter noise — competitors not relevant to you, unrelated topics, etc.
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                  <input
+                    value={newExcludeKw} onChange={e => setNewExcludeKw(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addExcludeKeyword()}
+                    placeholder="e.g. Mamata Banerjee, cricket, Ebola…"
+                    style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: `1px solid rgba(240,62,62,0.25)`, borderRadius: '6px', padding: '7px 10px', color: T0, fontFamily: mono, fontSize: '11px', outline: 'none' }}
+                  />
+                  <button onClick={addExcludeKeyword} style={{ padding: '7px 14px', background: 'rgba(240,62,62,0.08)', border: `1px solid rgba(240,62,62,0.25)`, borderRadius: '6px', color: RED, fontFamily: mono, fontSize: '9px', cursor: 'pointer' }}>
+                    EXCLUDE
+                  </button>
+                </div>
+                {excludedKeywords.length === 0 ? (
+                  <div style={{ fontFamily: mono, fontSize: '9px', color: T3, textAlign: 'center', padding: '16px' }}>
+                    No exclusions set. Your full feed shows.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {excludedKeywords.map((kw: string) => (
+                      <div key={kw} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 10px', background: 'rgba(240,62,62,0.05)', border: '1px solid rgba(240,62,62,0.15)', borderRadius: '6px' }}>
+                        <span style={{ fontFamily: mono, fontSize: '9px', color: RED, flex: 1 }}>✕ {kw}</span>
+                        <button onClick={() => removeExcludeKeyword(kw)} style={{ background: 'none', border: 'none', color: T3, cursor: 'pointer', fontSize: '14px' }}
+                          onMouseEnter={e => { e.currentTarget.style.color = RED }}
+                          onMouseLeave={e => { e.currentTarget.style.color = T3 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+
+              {/* Right: tips */}
               <Section title="KEYWORD TIPS" accent={BLUE}>
                 <div style={{ fontFamily: mono, fontSize: '9px', color: T3, lineHeight: 2 }}>
                   <div style={{ color: T1, marginBottom: '8px' }}>Good keywords to track:</div>

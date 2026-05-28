@@ -6,16 +6,14 @@ export default function DownloadReportButton() {
   const { user } = useAuthStore()
 
   function openReport() {
-    // Priority order for getting accountId:
-    // 1. account hook (already loaded)
-    // 2. localStorage (set on login in AuthPage)
-    // 3. user.id (which equals account_id for hardcoded-cred accounts)
-    const accountId = account?.id
-      || (typeof localStorage !== 'undefined' ? localStorage.getItem('bm_account_id') || '' : '')
-      || user?.id
-      || ''
-
-    const url = accountId ? `/report?accountId=${encodeURIComponent(accountId)}` : '/report'
+    const accountId =
+      account?.id ||
+      localStorage.getItem('bm_account_id') ||
+      user?.id ||
+      ''
+    const url = accountId
+      ? `/report?accountId=${encodeURIComponent(accountId)}`
+      : '/report'
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
