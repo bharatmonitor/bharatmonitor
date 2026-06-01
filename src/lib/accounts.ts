@@ -7,6 +7,7 @@ import { supabase, supabaseAdmin, FUNCTIONS_URL, SERVICE_KEY, ANON_KEY } from '@
 import { DEMO_ACCOUNT } from '@/lib/mockData'
 import type { Account } from '@/types'
 import type { Tier } from '@/lib/tiers'
+import { assertCanCreateAccount } from './planLimits'
 import type { UserRole } from '@/types'
 
 // ─── Normalize account arrays from Supabase JSONB ────────────────────────────
@@ -340,7 +341,12 @@ export async function updateAccount(userId: string, accountId: string, patch: Pa
   }
 }
 
-export async function createAccount(data: Partial<Account>): Promise<Account> {
+export async function createAccount(data: Partial<Account>, creatorTier?: Tier): Promise<Account> {
+  // Plan cap (#2): enforce account limit when the creator's tier is known.
+  // basic=1, advanced=5, elections=15, god=uncapped. Throws if at cap.
+  if (creatorTier && data.created_by) {
+    await assertCanCreateAccount(data.created_by, creatorTier)
+  }
   // Sanitize: only send columns that exist in the DB schema
   // Prevents "Invalid path specified" errors from unknown fields
   const KNOWN_COLUMNS = [

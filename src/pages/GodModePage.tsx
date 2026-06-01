@@ -12,6 +12,7 @@ import NavBar from '@/components/layout/NavBar'
 import { supabase } from '@/lib/supabase'
 import type { Account } from '@/types'
 import toast from 'react-hot-toast'
+import { AccountUsagePanel } from '../components/godmode/AccountUsagePanel'
 
 const mono   = '"IBM Plex Mono", monospace'
 const CARD   = '#111827'
@@ -129,6 +130,7 @@ export default function GodModePage() {
   const [limits,       setLimits]       = useState({ searches:3, news:5, youtube:10, social:85 })
   const [searchQ,      setSearchQ]      = useState('')
   const [activeTab,    setActiveTab]    = useState<'accounts'|'analytics'|'system'>('accounts')
+  const [usageTarget,  setUsageTarget]  = useState<string|null>(null)
   const [feedStats,    setFeedStats]    = useState<Record<string,number>>({})
   const [loadingStats, setLoadingStats] = useState(false)
 
@@ -355,6 +357,12 @@ export default function GodModePage() {
                                 onMouseLeave={e=>{e.currentTarget.style.background=GREEN+'08'}}>
                                 ⚡ Ingest
                               </button>
+                              <button onClick={() => setUsageTarget(usageTarget===acc.id?null:acc.id)}
+                                style={{ padding:'4px 9px', border:`1px solid ${BLUE}40`, borderRadius:'5px', background:BLUE+'08', color:BLUE, cursor:'pointer', fontSize:'8px' }}
+                                onMouseEnter={e=>{e.currentTarget.style.background=BLUE+'20'}}
+                                onMouseLeave={e=>{e.currentTarget.style.background=BLUE+'08'}}>
+                                📊 Usage
+                              </button>
                               <button onClick={() => { setGrantTarget(grantTarget===acc.id?null:acc.id); const bd=getFuelBreakdown(acc.id); setLimits({searches:bd.searches?.limit||3,news:bd.news?.limit||5,youtube:bd.youtube?.limit||10,social:bd.social?.limit||85}) }}
                                 style={{ padding:'4px 9px', border:`1px solid ${ACC}40`, borderRadius:'5px', background:ACC+'08', color:ACC, cursor:'pointer', fontSize:'8px' }}
                                 onMouseEnter={e=>{e.currentTarget.style.background=ACC+'20'}}
@@ -399,6 +407,7 @@ export default function GodModePage() {
                                 </div>
                               </div>
                             )}
+                            {usageTarget===acc.id && <AccountUsagePanel accountId={acc.id} />}
                           </td>
                         </tr>
                       )

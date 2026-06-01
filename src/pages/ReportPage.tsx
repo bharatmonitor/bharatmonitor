@@ -10,20 +10,22 @@ import { supabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 
 const mono   = '"IBM Plex Mono", monospace'
-const DARK   = '#0d1018'
-const CARD   = '#111827'
-const CARD2  = '#161d2c'
-const BORDER = 'rgba(255,255,255,0.08)'
-const ACC    = '#f97316'
-const GREEN  = '#22d3a0'
-const RED    = '#f03e3e'
-const YELLOW = '#f5a623'
-const BLUE   = '#3d8ef0'
-const PURPLE = '#7c6dfa'
-const T0     = '#edf0f8'
-const T1     = '#c8d0e0'
-const T2     = '#8892a4'
-const T3     = '#545f78'
+// Colours point at CSS variables (declared on .bm-report) so the report can flip
+// to a light document palette under @media print without touching inline styles.
+const DARK   = 'var(--bm-bg)'
+const CARD   = 'var(--bm-card)'
+const CARD2  = 'var(--bm-card2)'
+const BORDER = 'var(--bm-border)'
+const ACC    = 'var(--bm-acc)'
+const GREEN  = 'var(--bm-grn)'
+const RED    = 'var(--bm-red)'
+const YELLOW = 'var(--bm-yel)'
+const BLUE   = 'var(--bm-blu)'
+const PURPLE = 'var(--bm-pur)'
+const T0     = 'var(--bm-t0)'
+const T1     = 'var(--bm-t1)'
+const T2     = 'var(--bm-t2)'
+const T3     = 'var(--bm-t3)'
 
 const PLAT: Record<string,string> = {
   twitter:'#1d9bf0', youtube:'#ff2020', news:'#8892a4',
@@ -441,7 +443,7 @@ export default function ReportPage() {
     <SectionHeader n={String(n).padStart(2,'0')} title={title} color={color} />
 
   return (
-    <div style={{ background:DARK, color:T0, minHeight:'100vh', fontFamily:'system-ui, sans-serif' }}>
+    <div className="bm-report" style={{ background:DARK, color:T0, minHeight:'100vh', fontFamily:'system-ui, sans-serif' }}>
 
       {/* ── Print controls ── */}
       <div className="no-print" style={{ position:'fixed', top:'16px', right:'16px', zIndex:1000, display:'flex', gap:'8px' }}>
@@ -1098,11 +1100,29 @@ export default function ReportPage() {
       </div>
 
       <style>{`
+        /* screen (dark) — default palette on the report root */
+        .bm-report {
+          --bm-bg:#0d1018; --bm-card:#111827; --bm-card2:#161d2c;
+          --bm-border:rgba(255,255,255,0.08);
+          --bm-acc:#f97316; --bm-grn:#22d3a0; --bm-red:#f03e3e; --bm-yel:#f5a623;
+          --bm-blu:#3d8ef0; --bm-pur:#7c6dfa;
+          --bm-t0:#edf0f8; --bm-t1:#c8d0e0; --bm-t2:#8892a4; --bm-t3:#545f78;
+        }
         @media print {
           .no-print { display: none !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-          body { background: #0d1018 !important; }
-          @page { margin: 10mm; size: A4; background: #0d1018; }
+          @page { margin: 12mm; size: A4; }
+          html, body { background:#ffffff !important; }
+          /* print (light document) — same variables, repainted; semantic colours kept */
+          .bm-report {
+            --bm-bg:#ffffff; --bm-card:#ffffff; --bm-card2:#f4f6fa;
+            --bm-border:#e4e8f0;
+            --bm-acc:#e0680f; --bm-grn:#0f9d6e; --bm-red:#cf2b2b; --bm-yel:#c98410;
+            --bm-blu:#2a6fc4; --bm-pur:#5a4ad1;
+            --bm-t0:#11161f; --bm-t1:#1f2733; --bm-t2:#4a5568; --bm-t3:#7a8597;
+            background:#ffffff !important;
+          }
+          .bm-report section, .bm-report [data-section] { break-inside: avoid; }
         }
       `}</style>
     </div>

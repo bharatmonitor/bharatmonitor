@@ -799,6 +799,21 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[bm-ingest-v2] DONE inserted=${rows.length} crisis=${crisisRows.length} ai=${!!GEMINI_KEY}`, byPlatform)
+
+    // Telemetry: log this run for the God Mode per-account usage panel.
+    try {
+      await db.from('ingest_log').insert({
+        account_id:    accountId,
+        national_mode: nationalMode,
+        inserted:      rows.length,
+        raw_total:     allRaw.length,
+        crisis:        crisisRows.length,
+        ai_used:       !!GEMINI_KEY,
+        by_platform:   byPlatform,
+        status:        'ok',
+      })
+    } catch (logErr) { console.warn('[bm-ingest-v2] ingest_log insert failed:', logErr?.message) }
+
     return new Response(JSON.stringify({ ok:true, inserted:rows.length, crisis:crisisRows.length, ai_used:!!GEMINI_KEY, sources:byPlatform }), { headers: CORS })
 
   } catch(e) {
