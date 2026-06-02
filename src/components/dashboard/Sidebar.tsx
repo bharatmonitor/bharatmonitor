@@ -1,3 +1,4 @@
+import { BrandLogo } from '../brand/BrandLogo'
 import React from 'react'
 import { useState, useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 'recharts'
@@ -562,8 +563,9 @@ export default function Sidebar({ pulse, competitors, schemes, issueOwnership, a
       <NationalDiscoursePanel account={account} accountId={account.id} />
       <MetaAdsTracker account={account} />
       <div style={{ padding:'12px 13px', textAlign:'center', flexShrink:0 }}>
+        <div style={{ display:'flex', justifyContent:'center', marginBottom:'6px' }}><BrandLogo variant="lockup" height={26} /></div>
         <div style={{ fontFamily:'IBM Plex Mono, monospace', fontSize:'8px', color:'var(--t3)', lineHeight:1.9 }}>
-          BharatMonitor · Political Intelligence<br/>
+          <br/>
           <a href="mailto:ankit@hertzmsc.com" style={{ color:'var(--acc)' }}>ankit@hertzmsc.com</a>
         </div>
       </div>

@@ -146,7 +146,7 @@ async function fetchIndianRSS(kw) {
       const r = await fetch(feed.url, { headers: { 'User-Agent': 'BharatMonitor/3.0' }, signal: AbortSignal.timeout(8000) })
       if (!r.ok) continue
       const items = parseRSS(await r.text())
-        .filter(i => i.title.toLowerCase().includes(kw.toLowerCase()) || i.title.toLowerCase().includes('india'))
+        .filter(i => `${i.title} ${i.body||''}`.toLowerCase().includes(kw.toLowerCase()))
         .slice(0, 4)
       for (const i of items) {
         results.push({ id: `inrss-${feed.name.replace(/\s/g,'')}-${(i.link||'').slice(-20).replace(/[^a-z0-9]/gi,'')||Date.now().toString(36)}`, title: i.title, link: i.link, source: feed.name, pubDate: i.pubDate, platform: 'news', body: '' })
@@ -722,10 +722,26 @@ Deno.serve(async (req) => {
     const dedupPlatform = deduped.reduce((m,i) => { m[i.platform||'unknown']=(m[i.platform||'unknown']||0)+1; return m }, {})
     console.log(`[bm-ingest-v2] After dedup: ${deduped.length}`, JSON.stringify(dedupPlatform))
 
+    // ── Relevance gate ─────────────────────────────────────────────────────
+    // A keyword search can return loosely-related or unrelated items (e.g. any
+    // headline containing "India"). Keep an item only if its title+body actually
+    // mentions one of the account's keywords or the politician name. Skipped in
+    // national mode, which is intentionally broad.
+    const relevanceTerms = [
+      ...(keywords || []),
+      ...(politicianName ? [politicianName] : []),
+    ].map(t => String(t).toLowerCase().trim()).filter(t => t.length >= 3)
+
+    const relevant = nationalMode ? deduped : deduped.filter(item => {
+      const hay = `${item.title||''} ${item.body||''}`.toLowerCase()
+      return relevanceTerms.some(t => hay.includes(t))
+    })
+    console.log(`[bm-ingest-v2] After relevance gate: ${relevant.length}/${deduped.length} (terms=${relevanceTerms.length})`)
+
     const now = new Date().toISOString()
     const rows = []
     // Increase limit to capture social + news (was maxPerSource * kws, now 300 hard cap)
-    for (const item of deduped.slice(0, Math.max(300, maxPerSource * kws.length))) {
+    for (const item of relevant.slice(0, Math.max(300, maxPerSource * kws.length))) {
       const text = `${item.title||''} ${item.body||''}`
       const kw   = kwScore(text)
       const ai   = GEMINI_KEY ? await geminiSentiment(text) : null

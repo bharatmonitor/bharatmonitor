@@ -289,7 +289,7 @@ const PERSONAS = [
   { id:'urban',       label:'Urban Middle Class', icon:'🏙️', color:BLUE,    keywords:['city','urban','metro','inflation','income','jobs','startup','it sector','middle class','gst','housing','emi'] },
   { id:'youth',       label:'Youth (18-35)',       icon:'⚡', color:PURPLE,  keywords:['youth','student','unemployment','jobs','education','college','neet','exam','skill','internship'] },
   { id:'women',       label:'Women Voters',        icon:'👩', color:'#e1306c', keywords:['women','woman','mahila','reservation','safety','beti','girl','female','gender','health','maternity'] },
-  { id:'ideological', label:'Ideological Core',   icon:'🇮🇳', color:YELLOW,  keywords:['temple','mandir','ram','ayodhya','hindutva','nationalism','bharat','hindu','religion','patriot'] },
+  { id:'ideological', label:'Ideological Core',   icon:'◆', color:YELLOW,  keywords:['temple','mandir','ram','ayodhya','hindutva','nationalism','bharat','hindu','religion','patriot'] },
   { id:'business',    label:'Business Community', icon:'💼', color:ACC,     keywords:['business','industry','msme','gst','trade','export','investment','entrepreneur','manufacturing'] },
   { id:'minority',    label:'Minority Outreach',  icon:'🤝', color:'#9c59d1', keywords:['minority','muslim','christian','sikh','dalit','obc','tribal','adivasi','sc','st','reservation'] },
   { id:'senior',      label:'Senior Citizens',    icon:'👴', color:'#60a5fa', keywords:['pension','elderly','senior','ayushman','health','hospital','old age'] },

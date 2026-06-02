@@ -152,7 +152,7 @@ export default function IntelligencePage() {
             <div style={{ display:'flex', gap:'4px', alignSelf:'flex-end' }}>
               {(['account','national'] as const).map(m => (
                 <button key={m} onClick={() => setReportMode(m)} style={{ padding:'5px 12px', border:`1px solid ${reportMode===m?'var(--acc)':'rgba(255,255,255,0.1)'}`, borderRadius:'6px', background:reportMode===m?'rgba(249,115,22,0.1)':'transparent', color:reportMode===m?'var(--acc)':'var(--t2)', fontFamily:'"IBM Plex Mono",monospace', fontSize:'8px', cursor:'pointer', letterSpacing:'0.5px', textTransform:'uppercase' }}>
-                  {m === 'account' ? '👤 Account Keywords' : '🇮🇳 National Discourse'}
+                  {m === 'account' ? '👤 Account Keywords' : 'National Discourse'}
                 </button>
               ))}
             </div>

@@ -5,6 +5,7 @@ import { validateHardcodedCred, validateSupabaseStoredCred } from '@/lib/account
 import { supabase } from '@/lib/supabase'
 import type { Tier } from '@/lib/tiers'
 import toast from 'react-hot-toast'
+import { BrandLogo } from '../components/brand/BrandLogo'
 
 export default function AuthPage() {
   const { user, setUser, setTier } = useAuthStore()
@@ -74,7 +75,7 @@ export default function AuthPage() {
       <div style={{ width: '100%', maxWidth: '380px' }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'linear-gradient(135deg, #f97316, #ef4444)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', margin: '0 auto 12px' }}>🇮🇳</div>
+          <div style={{ display: 'flex', justifyContent: 'center', margin: '0 auto 12px' }}><BrandLogo variant="mark" height={52} /></div>
           <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '18px', color: '#edf0f8', letterSpacing: '2px', fontWeight: 600 }}>
             BHARAT<span style={{ color: '#f97316' }}>MONITOR</span>
           </div>

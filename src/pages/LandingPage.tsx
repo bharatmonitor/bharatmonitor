@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store'
 import { Navigate } from 'react-router-dom'
+import { BrandLogo } from '../components/brand/BrandLogo'
 
 export default function LandingPage() {
   const navigate = useNavigate()
@@ -21,7 +22,7 @@ export default function LandingPage() {
       {/* Navbar */}
       <nav style={{ background: 'var(--s1)', borderBottom: '1px solid var(--b1)', padding: '0 32px', height: '56px', display: 'flex', alignItems: 'center', gap: '16px', position: 'sticky', top: 0, zIndex: 200 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-          <div style={{ width: '28px', height: '28px', borderRadius: '7px', background: 'linear-gradient(135deg, #f97316, #ef4444)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>🇮🇳</div>
+          <BrandLogo variant="mark" height={28} />
           <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', fontWeight: 600, letterSpacing: '1px' }}>BHARAT<span style={{ color: '#f97316' }}>MONITOR</span></div>
         </div>
         <div style={{ marginLeft: 'auto' }}>

@@ -230,7 +230,7 @@ const PERSONA_DEFS = [
   { id: 'urban',       label: 'Urban Middle Class', icon: '🏙️', color: BLUE,    desc: 'Urban professionals, aspirational voters',        keywords: ['city','urban','metro','inflation','income','jobs','startup','it sector','middle class','gst','housing','emi'] },
   { id: 'youth',       label: 'Youth (18-35)',       icon: '⚡', color: '#7c6dfa', desc: 'First-time voters, students, job-seekers',       keywords: ['youth','student','unemployment','jobs','education','college','neet','exam','skill','internship'] },
   { id: 'women',       label: 'Women Voters',        icon: '👩', color: '#e1306c', desc: 'Women-focused issues, safety, welfare schemes', keywords: ['women','woman','mahila','reservation','safety','beti','girl','female','gender','health','maternity'] },
-  { id: 'ideological', label: 'Ideological Core',   icon: '🇮🇳', color: YELLOW, desc: 'Core base, high-loyalty supporters',              keywords: ['temple','mandir','ram','ayodhya','hindutva','nationalism','bharat','hindu','religion','patriot'] },
+  { id: 'ideological', label: 'Ideological Core',   icon: '◆', color: YELLOW, desc: 'Core base, high-loyalty supporters',              keywords: ['temple','mandir','ram','ayodhya','hindutva','nationalism','bharat','hindu','religion','patriot'] },
   { id: 'business',    label: 'Business Community', icon: '💼', color: ACC,     desc: 'Traders, industrialists, business owners',        keywords: ['business','industry','msme','gst','trade','export','investment','entrepreneur','manufacturing'] },
   { id: 'minority',    label: 'Minority Outreach',  icon: '🤝', color: '#9c59d1', desc: 'Minority communities, inclusive governance',    keywords: ['minority','muslim','christian','sikh','buddhist','dalit','obc','tribal','adivasi','sc','st','reservation'] },
   { id: 'senior',      label: 'Senior Citizens',    icon: '👴', color: '#60a5fa', desc: 'Pension, healthcare, welfare beneficiaries',    keywords: ['pension','elderly','senior','senior citizen','ayushman','health','hospital','old age'] },
@@ -977,7 +977,7 @@ export default function AnalysePage() {
                 {(['account', 'national'] as const).map(m => (
                   <button key={m} onClick={() => setReportMode(m)}
                     style={{ padding: '7px 12px', border: `1px solid ${reportMode === m ? ACC : BORDER}`, borderRadius: '6px', background: reportMode === m ? ACC + '18' : 'transparent', color: reportMode === m ? ACC : T2, fontFamily: mono, fontSize: '8px', cursor: 'pointer', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-                    {m === 'account' ? '👤 Account Keywords' : '🇮🇳 National Discourse'}
+                    {m === 'account' ? '👤 Account Keywords' : 'National Discourse'}
                   </button>
                 ))}
               </div>

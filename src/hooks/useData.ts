@@ -55,6 +55,7 @@ export function useFeedItems(accountId: string) {
         keyword: i.keyword || '',
         geo_tags: i.geo_tags || [],
         topic_tags: i.topic_tags || [],
+        body: i.body || i.ai_summary || '',
         contradiction: undefined,
       }))
       const fi: FeedItem[] = (r2.data || []).map((i: any) => ({
@@ -72,6 +73,7 @@ export function useFeedItems(accountId: string) {
         keyword: i.keyword || '',
         geo_tags: i.geo_tags || [],
         topic_tags: i.topic_tags || [],
+        body: i.body || '',
         contradiction: i.contradictions?.[0] || undefined,
       }))
       const seen = new Set<string>()
@@ -79,16 +81,42 @@ export function useFeedItems(accountId: string) {
         .filter(i => { const k = i.url || i.id; if (seen.has(k)) return false; seen.add(k); return true })
         .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
 
-      // Apply excluded_keywords filter from account settings
-      // Fetch excluded keywords from the accounts table
+      // Fetch the account's excluded + tracked keywords
       const { data: acctData } = await supabase
-        .from('accounts').select('excluded_keywords').eq('id', accountId).maybeSingle()
+        .from('accounts').select('excluded_keywords, keywords').eq('id', accountId).maybeSingle()
       const excluded: string[] = acctData?.excluded_keywords || []
-      if (excluded.length === 0) return merged
-      return merged.filter(item => {
-        const text = (item.headline + ' ' + (item.keyword || '')).toLowerCase()
-        return !excluded.some((ex: string) => text.includes(ex.toLowerCase()))
-      })
+      const tracked: string[] = acctData?.keywords || []
+
+      const norm    = (s: string) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim()
+      const nospace = (s: string) => (s || '').toLowerCase().replace(/[\s\-]/g, '')
+      const trackedN  = tracked.map(norm).filter(Boolean)
+      const trackedNS = tracked.map(nospace).filter((k) => k.length >= 5)
+
+      let out = merged
+
+      // 1) excluded_keywords blocklist (existing behaviour)
+      if (excluded.length) {
+        out = out.filter((item) => {
+          const text = norm(item.headline + ' ' + (item.keyword || ''))
+          return !excluded.some((ex: string) => text.includes(norm(ex)))
+        })
+      }
+
+      // 2) tracked-keyword RELEVANCE allowlist.
+      // Match on the item's actual TEXT (headline + body), NOT the stored `keyword`
+      // attribution — that field is set by the ingester and can be wrong (e.g. a
+      // Google-News fuzzy hit), which is exactly what was leaking unrelated national
+      // news ("Ebola", "CBSE", "Himachal fire") into the Crisis/Developing columns.
+      // Skip the gate when no keywords are configured (e.g. God account).
+      if (trackedN.length) {
+        out = out.filter((item) => {
+          const text  = norm(item.headline + ' ' + (item.body || ''))
+          const textN = nospace(item.headline + ' ' + (item.body || ''))
+          return trackedN.some((k) => text.includes(k)) || trackedNS.some((k) => textN.includes(k))
+        })
+      }
+
+      return out
     },
     enabled: !!accountId,
     refetchInterval: 3 * 60_000,

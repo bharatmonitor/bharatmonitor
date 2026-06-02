@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store'
+import { BrandLogo } from '../brand/BrandLogo'
 
 const mono   = '"IBM Plex Mono", monospace'
 const CARD   = '#111827'
@@ -16,7 +17,7 @@ const T3     = '#545f78'
 
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard',  icon: '◉' },
-  { path: '/national',  label: 'National',   icon: '🇮🇳' },
+  { path: '/national',  label: 'National',   icon: '◍' },
   { path: '/crisis',    label: 'Crisis',     icon: '⚡' },
   { path: '/analyse',   label: 'Analyse',    icon: '◈' },
   { path: '/research',  label: 'Research',   icon: '⚔' },
@@ -74,9 +75,7 @@ export default function NavBar() {
         {/* Brand */}
         <div onClick={() => go('/dashboard')}
           style={{ display:'flex', alignItems:'center', gap:'10px', cursor:'pointer', flexShrink:0, paddingRight:'16px', borderRight:`1px solid ${BORDER}` }}>
-          <div style={{ width:'32px', height:'32px', borderRadius:'8px', background:'linear-gradient(135deg,#f97316,#ef4444)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px', flexShrink:0 }}>
-            🇮🇳
-          </div>
+          <BrandLogo variant="mark" height={32} style={{ flexShrink:0 }} />
           <div className="nav-desktop">
             <div style={{ fontFamily:mono, fontSize:'11px', color:T0, letterSpacing:'1.5px', fontWeight:700, lineHeight:1 }}>
               BHARAT<span style={{ color:ACC }}>MONITOR</span>
