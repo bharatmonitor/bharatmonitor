@@ -680,8 +680,12 @@ Deno.serve(async (req) => {
       // Twitter API v2 DISABLED — Pay Per Use account causes 402. Re-enable when plan switched to Free.
       // ...kws.slice(0,3).map(kw => fetchTwitterV2(kw).then(items => allRaw.push(...items.map(i=>({...i,keyword:kw}))))),
       // Nitter discontinued May 2026 — removed
-      // Bluesky watchlist handles (from body.watchlistHandles)
-      ...(body.watchlistHandles||[]).filter(h=>h.includes('bsky')||h.includes('bsky.social')).slice(0,10).map(h => fetchBlueskyUser(h).then(items => allRaw.push(...items.map(i=>({...i,keyword:kws[0]||''})))))
+      // Bluesky watchlist handles (from body.watchlistHandles).
+      // Entries may be plain strings OR objects ({handle, platform, is_active}) —
+      // normalize to a string first, else h.includes() throws "is not a function".
+      ...(body.watchlistHandles||[])
+        .map((h: any) => typeof h === 'string' ? h : (h?.handle || ''))
+        .filter((h: string) => h.includes('bsky') || h.includes('bsky.social')).slice(0,10).map(h => fetchBlueskyUser(h).then(items => allRaw.push(...items.map(i=>({...i,keyword:kws[0]||''})))))
     ])
 
     console.log(`[bm-ingest-v2] Total raw: ${allRaw.length}`)
