@@ -42,6 +42,7 @@ export default function NavBar() {
 
   const displayName = user?.account?.politician_name || user?.email?.split('@')[0] || 'User'
   const initials    = (user?.email || 'U').charAt(0).toUpperCase()
+  const reportUrl = user?.account?.id ? `/report?accountId=${encodeURIComponent(user.account.id)}` : '/report'
 
   return (
     <>
@@ -117,7 +118,7 @@ export default function NavBar() {
         <div className="nav-desktop" style={{ alignItems:'center', gap:'6px', paddingLeft:'12px', borderLeft:`1px solid ${BORDER}`, flexShrink:0 }}>
 
           {/* Report */}
-          <button onClick={() => window.open('/report','_blank')}
+          <button onClick={() => window.open(reportUrl,'_blank')}
             style={{ display:'flex', alignItems:'center', gap:'5px', padding:'6px 12px', height:'36px', borderRadius:'7px', border:`1px solid rgba(34,211,160,0.3)`, background:'rgba(34,211,160,0.07)', color:GREEN, fontFamily:mono, fontSize:'9px', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' as const }}
             onMouseEnter={e => { e.currentTarget.style.background='rgba(34,211,160,0.15)' }}
             onMouseLeave={e => { e.currentTarget.style.background='rgba(34,211,160,0.07)' }}>
@@ -223,7 +224,7 @@ export default function NavBar() {
 
             {/* Bottom actions */}
             <div style={{ padding:'12px', borderTop:`1px solid ${BORDER}`, display:'flex', flexDirection:'column', gap:'8px' }}>
-              <button onClick={() => { window.open('/report','_blank'); setMenuOpen(false) }}
+              <button onClick={() => { window.open(reportUrl,'_blank'); setMenuOpen(false) }}
                 style={{ display:'flex', alignItems:'center', gap:'10px', padding:'14px 16px', borderRadius:'10px', border:`1px solid rgba(34,211,160,0.3)`, background:'rgba(34,211,160,0.07)', color:GREEN, fontFamily:mono, fontSize:'10px', fontWeight:600, cursor:'pointer', textAlign:'left' as const }}>
                 <span style={{ fontSize:'16px' }}>⬇</span> Download Report
               </button>

@@ -82,6 +82,8 @@ const SENTIMENTS = ['all','positive','negative','neutral'] as const
 
 type SortKey = 'published_at' | 'source' | 'platform' | 'bucket' | 'sentiment' | 'engagement' | 'keyword'
 
+const BUCKET_LABEL: Record<string,string> = { red:'CRISIS', yellow:'DEVELOPING', blue:'BACKGROUND', silver:'GENERAL' }
+
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
 function toCSV(rows: FeedItem[]): string {
@@ -92,7 +94,7 @@ function toCSV(rows: FeedItem[]): string {
     { label: 'Headline',     get: r => r.headline },
     { label: 'Body',         get: r => (r.body || '').substring(0, 500) },
     { label: 'URL',          get: r => r.url || '' },
-    { label: 'Bucket',       get: r => r.bucket },
+    { label: 'Bucket',       get: r => BUCKET_LABEL[(r.bucket as string)] || r.bucket },
     { label: 'Sentiment',    get: r => r.sentiment },
     { label: 'Tone',         get: r => String(r.tone ?? 0) },
     { label: 'Keyword',      get: r => r.keyword || '' },

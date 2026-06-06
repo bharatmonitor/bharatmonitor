@@ -41,13 +41,50 @@ function extractJSON(text: string): any {
   return null
 }
 
+// ── Computed fallback (no AI) — keeps the report populated when Gemini is
+//    unavailable (429 / quota / billing). Clusters by topic tag or keyword.
+function computeFallbackTopics(items: any[]): any[] {
+  const groups: Record<string, number[]> = {}
+  items.forEach((it: any, idx: number) => {
+    const key = ((it.topic_tags && it.topic_tags.length ? it.topic_tags[0] : (it.keyword || 'General')) || 'General').toString()
+    ;(groups[key] ||= []).push(idx)
+  })
+  const srcCount = (idxs: number[], sentiment: string) => {
+    const m: Record<string, number> = {}
+    idxs.forEach((i) => { const it = items[i]; if (it.sentiment === sentiment && it.source) m[it.source] = (m[it.source] || 0) + 1 })
+    return Object.entries(m).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 5)
+  }
+  return Object.entries(groups).map(([title, idxs]) => {
+    const pos = idxs.filter((i) => items[i].sentiment === 'positive').length
+    const neg = idxs.filter((i) => items[i].sentiment === 'negative').length
+    return {
+      title, indices: idxs.slice(0, 50), positiveCount: pos, negativeCount: neg,
+      topPositiveSources: srcCount(idxs, 'positive'),
+      topNegativeSources: srcCount(idxs, 'negative'),
+      narrativePoints: idxs.slice(0, 4).map((i) => items[i].headline).filter(Boolean),
+    }
+  }).sort((a, b) => b.indices.length - a.indices.length).slice(0, 8)
+}
+
+function computeFallbackConclusions(topics: any[], total: number): any[] {
+  const pos = topics.reduce((s, t) => s + (t.positiveCount || 0), 0)
+  const neg = topics.reduce((s, t) => s + (t.negativeCount || 0), 0)
+  const top = topics[0]
+  const worst = [...topics].sort((a, b) => (b.negativeCount || 0) - (a.negativeCount || 0))[0]
+  const out: any[] = []
+  if (top) out.push({ title: 'DOMINANT NARRATIVE', body: `"${top.title}" leads coverage with ${top.indices.length} items (${((top.indices.length / Math.max(total, 1)) * 100).toFixed(0)}% of volume) — ${top.positiveCount} positive vs ${top.negativeCount} negative.` })
+  out.push({ title: 'SENTIMENT BALANCE', body: `Across ${total} tracked items, coverage skews ${pos >= neg ? 'positive' : 'negative'} (${pos} positive / ${neg} negative). Watch the negative cluster for escalation.` })
+  if (worst && worst.negativeCount) out.push({ title: 'PRIMARY PRESSURE POINT', body: `"${worst.title}" carries the highest negative load (${worst.negativeCount} items). Prioritise response posture here.` })
+  out.push({ title: 'AI ANALYSIS PENDING', body: 'These conclusions are computed directly from tracked data. Full AI strategic analysis resumes once the Gemini quota resets or a billing-enabled key is configured.' })
+  return out
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
 
   try {
     const { accountId, dateFrom, dateTo, maxItems = 150, nationalMode = false } = await req.json()
     if (!accountId) return new Response(JSON.stringify({ error: 'Missing accountId' }), { status: 400, headers: CORS })
-    if (!GEMINI_KEY) return new Response(JSON.stringify({ error: 'GEMINI_API_KEY not configured in Vault' }), { status: 500, headers: CORS })
 
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
     const db = createClient(SUPABASE_URL, SUPABASE_KEY)
@@ -95,31 +132,42 @@ Deno.serve(async (req: Request): Promise<Response> => {
       '"topNegativeSources":[{"name":"source","count":8}],' +
       '"narrativePoints":["point1","point2"]}]}'
 
-    const clusterRaw = await callGemini(clusterPrompt, 4000)
-    const clustered = extractJSON(clusterRaw)
+    let clustered: any = null
+    let conclusionsData: any = null
+    let aiGenerated = false
 
-    if (!clustered?.topics?.length) {
-      console.error('[intelligence] Clustering failed. Raw:', clusterRaw.slice(0, 300))
-      return new Response(JSON.stringify({ error: 'AI clustering failed — check GEMINI_API_KEY in Vault' }), { status: 500, headers: CORS })
+    if (GEMINI_KEY) {
+      try {
+        const clusterRaw = await callGemini(clusterPrompt, 4000)
+        clustered = extractJSON(clusterRaw)
+        if (clustered?.topics?.length) {
+          const topicLines = clustered.topics
+            .map((t: any) => t.title + ': ' + (t.positiveCount || 0) + ' pos, ' + (t.negativeCount || 0) + ' neg')
+            .join('\n')
+          const conclusionsPrompt = 'You are a senior Indian political strategist writing for a ruling party war room.\n\n' +
+            'Social media intelligence data from ' + fromDate + ' to ' + toDate + ':\n' + topicLines + '\n\n' +
+            'Write exactly 5 strategic conclusions. Each needs:\n' +
+            '- TITLE: 4-6 word headline in CAPS\n' +
+            '- body: 3-4 sentence strategic analysis (specific, actionable, not generic)\n\n' +
+            'Focus on: dominant narratives, institutional trust erosion, economic anxieties, ' +
+            'federalism tensions, information control battles.\n\n' +
+            'Reply with ONLY this JSON, no markdown:\n' +
+            '{"conclusions":[{"title":"CAPS TITLE","body":"paragraph text"}]}'
+          const conclusionsRaw = await callGemini(conclusionsPrompt, 1500)
+          conclusionsData = extractJSON(conclusionsRaw)
+          aiGenerated = true
+        }
+      } catch (err: any) {
+        console.warn('[intelligence] Gemini unavailable — using computed fallback:', err?.message)
+      }
     }
 
-    // Step 2: Strategic conclusions
-    const topicLines = clustered.topics
-      .map((t: any) => t.title + ': ' + (t.positiveCount || 0) + ' pos, ' + (t.negativeCount || 0) + ' neg')
-      .join('\n')
-
-    const conclusionsPrompt = 'You are a senior Indian political strategist writing for a ruling party war room.\n\n' +
-      'Social media intelligence data from ' + fromDate + ' to ' + toDate + ':\n' + topicLines + '\n\n' +
-      'Write exactly 5 strategic conclusions. Each needs:\n' +
-      '- TITLE: 4-6 word headline in CAPS\n' +
-      '- body: 3-4 sentence strategic analysis (specific, actionable, not generic)\n\n' +
-      'Focus on: dominant narratives, institutional trust erosion, economic anxieties, ' +
-      'federalism tensions, information control battles.\n\n' +
-      'Reply with ONLY this JSON, no markdown:\n' +
-      '{"conclusions":[{"title":"CAPS TITLE","body":"paragraph text"}]}'
-
-    const conclusionsRaw = await callGemini(conclusionsPrompt, 1500)
-    const conclusionsData = extractJSON(conclusionsRaw)
+    // Fallback: never error out — compute clusters + conclusions from the data.
+    if (!clustered?.topics?.length) {
+      clustered = { topics: computeFallbackTopics(items) }
+      conclusionsData = { conclusions: computeFallbackConclusions(clustered.topics, total) }
+      aiGenerated = false
+    }
 
     // Enrich topics with actual item data
     const enrichedTopics = clustered.topics.map((t: any) => {
@@ -151,6 +199,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       topicCount:   enrichedTopics.length,
       topics:       enrichedTopics,
       conclusions:  conclusionsData?.conclusions || [],
+      aiGenerated,
     }
 
     console.log('[intelligence] Done:', enrichedTopics.length, 'topics')
