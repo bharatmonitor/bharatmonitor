@@ -973,6 +973,38 @@ export default function ReportPage() {
         <PageBreak />
 
         {/* ══════════════════════════════════════════════════════════════
+            ALL NEWS BY SENTIMENT
+        ══════════════════════════════════════════════════════════════ */}
+        {(() => {
+          const news = feed.filter(f => f.platform === 'news')
+          if (news.length === 0) return null
+          const groups = [
+            { label: 'POSITIVE', color: GREEN, items: news.filter(f => f.sentiment === 'positive') },
+            { label: 'NEUTRAL',  color: T2,    items: news.filter(f => f.sentiment !== 'positive' && f.sentiment !== 'negative') },
+            { label: 'NEGATIVE', color: RED,   items: news.filter(f => f.sentiment === 'negative') },
+          ]
+          return (
+            <div style={{ marginBottom:'32px', pageBreakInside:'avoid' }}>
+              {S('N', 'ALL NEWS BY SENTIMENT', BLUE)}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'12px' }}>
+                {groups.map(g => (
+                  <Card key={g.label} style={{ borderTop:`3px solid ${g.color}` }}>
+                    <div style={{ fontFamily:mono, fontSize:'9px', color:g.color, fontWeight:700, marginBottom:'10px', letterSpacing:'1px' }}>{g.label} · {g.items.length}</div>
+                    {g.items.slice(0,20).map((it,i) => (
+                      <div key={it.id||i} style={{ marginBottom:'9px' }}>
+                        <div style={{ fontSize:'10px', color:T1, lineHeight:1.35 }}>{it.headline}</div>
+                        <div style={{ fontFamily:mono, fontSize:'7px', color:T3, marginTop:'2px' }}>{it.source}</div>
+                      </div>
+                    ))}
+                    {g.items.length === 0 && <div style={{ fontFamily:mono, fontSize:'8px', color:T3 }}>None</div>}
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ══════════════════════════════════════════════════════════════
             SECTION 16 — POSITIVE COVERAGE
         ══════════════════════════════════════════════════════════════ */}
         {stats.posItems.length > 0 && (

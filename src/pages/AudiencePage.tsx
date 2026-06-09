@@ -3,6 +3,7 @@ import { useAccount, useFeedItems, useCompetitors } from '@/hooks/useData'
 import NavBar from '@/components/layout/NavBar'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts'
 import type { FeedItem } from '@/types'
+import { estimateReach, formatReach } from '../lib/chartData'
 
 const mono = 'IBM Plex Mono, monospace'
 const PLAT_COLORS: Record<string, string> = {
@@ -128,6 +129,7 @@ export default function AudiencePage() {
 
   const totalEng = useMemo(()=>feed.reduce((s,f)=>s+(f.engagement||0),0),[feed])
   const totalViews = useMemo(()=>feed.reduce((s,f)=>s+(f.views||0),0),[feed])
+  const totalReach = useMemo(()=>estimateReach(feed),[feed])
   const selectedPersonaData = personas.find(p=>p.id===selectedPersona)
 
   return (
@@ -147,7 +149,7 @@ export default function AudiencePage() {
             { l:'COVERAGE',   v:feed.length,                                             c:'var(--t0)' },
             { l:'POSITIVE',   v:feed.filter(f=>f.sentiment==='positive').length,          c:'#22d3a0'   },
             { l:'NEGATIVE',   v:feed.filter(f=>f.sentiment==='negative').length,          c:'#f03e3e'   },
-            { l:'ENGAGEMENT', v:totalEng>0?`${(totalEng/1000).toFixed(1)}K`:'—',          c:'#7c6dfa'   },
+            { l:'EST. REACH', v:formatReach(totalReach),                                    c:'#7c6dfa'   },
             { l:'PLATFORMS',  v:platformStats.length,                                     c:'#f5a623'   },
             { l:'GEO SIGNALS',v:geoData.length,                                           c:'#3d8ef0'   },
           ].map(k=>(

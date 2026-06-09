@@ -315,7 +315,7 @@ function generateHTMLReport(rows: FeedItem[], stats: {
           return `<tr>
             <td class="mono" style="font-size:8px;color:#555f75;">${i+1}</td>
             <td class="mono" style="font-size:8px;">${r.platform.toUpperCase()}</td>
-            <td><span class="badge" style="background:${(bColor[r.bucket]||'#888')}18;color:${bColor[r.bucket]||'#888'};">${r.bucket.toUpperCase()}</span></td>
+            <td><span class="badge" style="background:${(bColor[r.bucket]||'#888')}18;color:${bColor[r.bucket]||'#888'};">${BUCKET_LABEL[r.bucket]||r.bucket.toUpperCase()}</span></td>
             <td><span class="badge" style="background:${(sColor[r.sentiment]||'#888')}18;color:${sColor[r.sentiment]||'#888'};">${r.sentiment.toUpperCase()}</span></td>
             <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.headline}</td>
             <td class="mono" style="font-size:8px;color:#8892a4;">${r.source.substring(0,20)}</td>
@@ -613,7 +613,7 @@ export default function DataTablePage() {
           <FilterSelect label="PLATFORM" value={platform} onChange={v => { setPlatform(v as any); setPage(1) }}
             options={PLATFORMS.map(p => ({ value: p, label: p === 'all' ? 'All Platforms' : p.toUpperCase(), count: p === 'all' ? allData.length : (stats.byPlatform[p] || 0) }))} />
           <FilterSelect label="BUCKET" value={bucket} onChange={v => { setBucket(v as any); setPage(1) }}
-            options={BUCKETS.map(b => ({ value: b, label: b === 'all' ? 'All Buckets' : b.toUpperCase(), count: b === 'all' ? allData.length : (stats.byBucket[b] || 0), color: b !== 'all' ? BUCKET_COLOR[b] : undefined }))} />
+            options={BUCKETS.map(b => ({ value: b, label: b === 'all' ? 'All Buckets' : (BUCKET_LABEL[b]||b.toUpperCase()), count: b === 'all' ? allData.length : (stats.byBucket[b] || 0), color: b !== 'all' ? BUCKET_COLOR[b] : undefined }))} />
           <FilterSelect label="SENTIMENT" value={sentiment} onChange={v => { setSentiment(v as any); setPage(1) }}
             options={SENTIMENTS.map(s => ({ value: s, label: s === 'all' ? 'All Sentiments' : s.charAt(0).toUpperCase()+s.slice(1), count: s === 'all' ? allData.length : (stats.bySentiment[s] || 0), color: s !== 'all' ? SENT_COLOR[s] : undefined }))} />
           <div style={{ background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: '8px', padding: '9px 12px' }}>
@@ -784,7 +784,7 @@ function GoogleXCard({ item }: { item: FeedItem }) {
         {/* Bucket badge */}
         <span style={{ fontFamily: mono, fontSize: '6px', padding: '2px 5px', borderRadius: '3px',
           background: buck.bg, color: buck.fg, border: `1px solid ${buck.fg}30`, flexShrink: 0 }}>
-          {item.bucket.toUpperCase()}
+          {BUCKET_LABEL[item.bucket]||item.bucket.toUpperCase()}
         </span>
       </div>
 
@@ -857,7 +857,7 @@ function TableRow({ row, idx }: { row: FeedItem & Record<string, any>; idx: numb
           </div>
         </Cell>
         <Cell>
-          <span style={{ fontFamily: mono, fontSize: '7px', padding: '2px 5px', borderRadius: '3px', background: BUCKET_COLOR[row.bucket] + '18', color: BUCKET_COLOR[row.bucket], border: `1px solid ${BUCKET_COLOR[row.bucket]}30` }}>{row.bucket.toUpperCase()}</span>
+          <span style={{ fontFamily: mono, fontSize: '7px', padding: '2px 5px', borderRadius: '3px', background: BUCKET_COLOR[row.bucket] + '18', color: BUCKET_COLOR[row.bucket], border: `1px solid ${BUCKET_COLOR[row.bucket]}30` }}>{BUCKET_LABEL[row.bucket]||row.bucket.toUpperCase()}</span>
         </Cell>
         <Cell>
           <span style={{ fontFamily: mono, fontSize: '7px', padding: '2px 5px', borderRadius: '3px', background: SENT_COLOR[row.sentiment] + '18', color: SENT_COLOR[row.sentiment] }}>{row.sentiment.toUpperCase()}</span>

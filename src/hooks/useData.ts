@@ -47,7 +47,7 @@ export function useFeedItems(accountId: string) {
         published_at: i.published_at || now,
         fetched_at: i.fetched_at || i.created_at || now,
         language: i.language || 'english',
-        bucket: (i.bucket && ['red','yellow','blue','silver'].includes(i.bucket) ? i.bucket : tone2bucket(i.tone || 0)) as any,
+        bucket: correctBucket((i.bucket && ['red','yellow','blue','silver'].includes(i.bucket) ? i.bucket : tone2bucket(i.tone || 0)), i.tone || 0, i.sentiment) as any,
         platform: (i.platform || i.source_type || 'news') as any,
         url: i.url || '',
         sentiment: (i.sentiment || tone2sent(i.tone)) as any,
@@ -109,10 +109,16 @@ export function useFeedItems(accountId: string) {
       // news ("Ebola", "CBSE", "Himachal fire") into the Crisis/Developing columns.
       // Skip the gate when no keywords are configured (e.g. God account).
       if (trackedN.length) {
+        // Headline-primary match. Body is only trusted for SPECIFIC (long) keywords
+        // — short place/role terms must appear in the headline, which stops passing
+        // mentions in an article body from dragging in unrelated items.
+        const strongKeys = trackedN.filter((k) => k.length >= 8)
         out = out.filter((item) => {
-          const text  = norm(item.headline + ' ' + (item.body || ''))
-          const textN = nospace(item.headline + ' ' + (item.body || ''))
-          return trackedN.some((k) => text.includes(k)) || trackedNS.some((k) => textN.includes(k))
+          const head  = norm(item.headline)
+          const headN = nospace(item.headline)
+          if (trackedN.some((k) => head.includes(k)) || trackedNS.some((k) => headN.includes(k))) return true
+          const body = norm(item.body || '')
+          return strongKeys.some((k) => body.includes(k))
         })
       }
 
@@ -123,6 +129,15 @@ export function useFeedItems(accountId: string) {
     staleTime: 30_000,
     retry: 1,
   })
+}
+
+// Crisis (red) and Developing (yellow) must be NEGATIVE for the account.
+// Ingest sometimes tags disaster keywords (fire/blast/emergency) as red even when
+// the item is neutral/positive for us — downgrade those so positives never show as crisis.
+function correctBucket(bucket: string, tone: number, sentiment?: string): string {
+  const positive = sentiment === 'positive' || (typeof tone === 'number' && tone >= 1)
+  if (positive && (bucket === 'red' || bucket === 'yellow')) return 'blue'
+  return bucket
 }
 
 function tone2bucket(tone: number): string {
@@ -411,7 +426,7 @@ export function useSearch(accountId: string, query: string) {
         published_at: i.published_at || now,
         fetched_at: i.fetched_at || i.created_at || now,
         language: i.language || 'english',
-        bucket: (i.bucket && ['red','yellow','blue','silver'].includes(i.bucket) ? i.bucket : tone2bucket(i.tone || 0)) as any,
+        bucket: correctBucket((i.bucket && ['red','yellow','blue','silver'].includes(i.bucket) ? i.bucket : tone2bucket(i.tone || 0)), i.tone || 0, i.sentiment) as any,
         platform: (i.platform || i.source_type || 'news') as any,
         url: i.url || '',
         sentiment: tone2sent(i.tone) as any,

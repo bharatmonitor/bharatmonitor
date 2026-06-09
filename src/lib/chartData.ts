@@ -241,3 +241,33 @@ function geoSentiment(feed: FeedItem[], regions: string[]): Record<string, Regio
 //   import { INDIA_STATES, CHHATTISGARH_DISTRICTS } from '../components/maps/indiaPaths'
 //   geoSentimentByRegions(feed, Object.keys(INDIA_STATES))
 export const geoSentimentByRegions = (feed: FeedItem[], regionNames: string[]) => geoSentiment(feed, regionNames)
+
+// ── Estimated reach (#reach) — raw engagement/views are sparse, so approximate.
+// News  → per-source daily online-readership proxy (Indian outlets).
+// YouTube → actual views when present, else a conservative default.
+const NEWS_SOURCE_REACH: Record<string, number> = {
+  'times of india': 1500000, 'ndtv': 900000, 'the hindu': 700000, 'hindustan times': 800000,
+  'india today': 700000, 'dainik bhaskar': 1200000, 'amar ujala': 800000, 'jagran': 900000,
+  'indian express': 600000, 'ani': 500000, 'news18': 600000, 'zee': 600000, 'patrika': 500000,
+  'naidunia': 300000, 'statesman': 200000, 'telegraph': 300000,
+}
+const DEFAULT_NEWS_REACH = 60000
+export function estimateReach(feed: FeedItem[]): number {
+  let total = 0
+  for (const f of feed) {
+    if (f.platform === 'youtube') total += (f.views || f.engagement || 5000)
+    else if (f.platform === 'news') {
+      const key = (f.source || '').toLowerCase()
+      const hit = Object.keys(NEWS_SOURCE_REACH).find((s) => key.includes(s))
+      total += hit ? NEWS_SOURCE_REACH[hit] : DEFAULT_NEWS_REACH
+    } else total += (f.views || f.engagement || 1000)
+  }
+  return total
+}
+// Indian-numbering formatter (K / Lakh / Crore).
+export function formatReach(n: number): string {
+  if (n >= 1e7) return (n / 1e7).toFixed(1) + ' Cr'
+  if (n >= 1e5) return (n / 1e5).toFixed(1) + ' L'
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'
+  return String(Math.round(n))
+}
