@@ -8,6 +8,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useAccount, useFeedItems, useContradictions, useCompetitors, useTrendMetrics, useConstituencyPulse, useSchemes, useAIBrief } from '@/hooks/useData'
 import { supabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
+import { estimateReach, formatReach } from '../lib/chartData'
 
 const mono   = '"IBM Plex Mono", monospace'
 // Colours point at CSS variables (declared on .bm-report) so the report can flip
@@ -482,12 +483,13 @@ export default function ReportPage() {
           </div>
 
           {/* KPI strip */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'8px', marginBottom:'16px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(8,1fr)', gap:'8px', marginBottom:'16px' }}>
             <KPI label="TOTAL ITEMS"    value={stats.total}          color={T0}     />
             <KPI label="CRISIS"         value={stats.crisis}         color={RED}    />
             <KPI label="DEVELOPING"     value={stats.dev}            color={YELLOW} />
             <KPI label="POSITIVE"       value={`${stats.posPct}%`}   color={GREEN}  />
             <KPI label="NEGATIVE"       value={`${stats.negPct}%`}   color={RED}    />
+            <KPI label="EST. REACH"     value={formatReach(estimateReach(feed))} color={BLUE} />
             <KPI label="CONTRADICTIONS" value={contradictions.length} color={YELLOW} />
             <KPI label="COMPETITORS"    value={competitors.length}   color={PURPLE} />
           </div>

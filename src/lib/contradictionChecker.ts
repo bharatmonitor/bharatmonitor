@@ -250,7 +250,7 @@ async function geminiDirectFallback(prompt: string): Promise<ClaudeContradiction
   const geminiKey = import.meta.env.VITE_GEMINI_KEY || ''
   if (!geminiKey) return null
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

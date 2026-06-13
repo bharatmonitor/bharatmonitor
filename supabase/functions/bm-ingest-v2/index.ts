@@ -399,17 +399,17 @@ async function fetchReddit(kw) {
 }
 
 
-// ─── RapidAPI: Twitter135 — keyword search ────────────────────────────────────
+// ─── RapidAPI: twitter-x — keyword search ────────────────────────────────────
 async function fetchTwitterRapid(kw) {
   if (!RAPIDAPI_KEY) return []
   try {
-    const q = encodeURIComponent(kw + ' india')
-    // twitter-api45 (subscribed on RapidAPI) — replaces dead twitter135
-    const url = `https://twitter-api45.p.rapidapi.com/search.php?query=${q}&searchtype=Top`
-    console.log(`[TwitterRapid] fetching twitter-api45: ${url.slice(0,80)}`)
+    const q = encodeURIComponent(kw)
+    // twitter-x (subscribed on RapidAPI) — /search returns X's search timeline
+    const url = `https://twitter-x.p.rapidapi.com/search/?query=${q}&section=top&limit=20`
+    console.log(`[TwitterRapid] fetching twitter-x: ${url.slice(0,90)}`)
     const r = await fetch(url, {
       headers: {
-        'x-rapidapi-host': 'twitter-api45.p.rapidapi.com',
+        'x-rapidapi-host': 'twitter-x.p.rapidapi.com',
         'x-rapidapi-key': RAPIDAPI_KEY,
       },
       signal: AbortSignal.timeout(15000),
@@ -420,29 +420,66 @@ async function fetchTwitterRapid(kw) {
       return []
     }
     const d = JSON.parse(body)
-    // Twitter135 search response - try multiple response shapes
+
+    // Primary: X search-timeline shape (twitter-x mirrors X's internal API)
     const instructions = d?.data?.search_by_raw_query?.search_timeline?.timeline?.instructions
+      || d?.data?.search?.timeline?.instructions
       || d?.data?.timeline?.instructions
       || d?.timeline?.instructions
       || []
-    const tweets = instructions
+    let results = instructions
       .flatMap((i:any) => i.entries || i.addEntries?.entries || [])
-      .filter((e:any) => e?.content?.itemContent?.tweet_results?.result || e?.content?.content?.tweet_results?.result)
-      .map((e:any) => e.content?.itemContent?.tweet_results?.result || e.content?.content?.tweet_results?.result)
-    console.log(`[TwitterRapid] "${kw}": ${tweets.length} tweets (raw keys: ${Object.keys(d).join(',')})`)
-    return tweets.slice(0,20).map((t:any) => {
-      const legacy = t?.legacy || t?.tweet?.legacy || {}
-      const user = t?.core?.user_results?.result?.legacy || t?.user?.legacy || {}
-      return {
-        id: `twrapid-${legacy.id_str || Math.random().toString(36).slice(2,10)}`,
-        title: (legacy.full_text || legacy.text || '').slice(0, 220),
-        link: user.screen_name && legacy.id_str ? `https://twitter.com/${user.screen_name}/status/${legacy.id_str}` : '',
-        source: `@${user.screen_name || 'twitter'}`,
-        pubDate: legacy.created_at ? new Date(legacy.created_at).toISOString() : new Date().toISOString(),
-        platform: 'twitter', body: legacy.full_text || '',
-        engagement: (legacy.favorite_count || 0) + (legacy.retweet_count || 0),
+      .map((e:any) => e?.content?.itemContent?.tweet_results?.result || e?.content?.content?.tweet_results?.result)
+      .filter(Boolean)
+      .map((t:any) => {
+        const legacy = t?.legacy || t?.tweet?.legacy || {}
+        const user = t?.core?.user_results?.result?.legacy || t?.user?.legacy || {}
+        return {
+          id: `twrapid-${legacy.id_str || Math.random().toString(36).slice(2,10)}`,
+          title: (legacy.full_text || legacy.text || '').slice(0, 220),
+          link: user.screen_name && legacy.id_str ? `https://twitter.com/${user.screen_name}/status/${legacy.id_str}` : '',
+          source: `@${user.screen_name || 'twitter'}`,
+          pubDate: legacy.created_at ? new Date(legacy.created_at).toISOString() : new Date().toISOString(),
+          platform: 'twitter', body: legacy.full_text || legacy.text || '',
+          engagement: (legacy.favorite_count || 0) + (legacy.retweet_count || 0),
+          views: Number(t?.views?.count || 0),
+        }
+      })
+
+    // Fallback: recursively scan for any tweet-like objects if the structured
+    // parse came up empty (covers flatter twitter-x response variants).
+    if (results.length === 0) {
+      const found: any[] = []
+      const seen = new Set<string>()
+      const walk = (o:any, depth:number) => {
+        if (!o || depth > 8 || found.length >= 25) return
+        if (Array.isArray(o)) { o.forEach(x => walk(x, depth+1)); return }
+        if (typeof o === 'object') {
+          const text = o.full_text || o.text || o.tweet_text || (o.legacy && (o.legacy.full_text || o.legacy.text))
+          const screen = o.screen_name || o.username || o?.user?.screen_name || o?.legacy?.screen_name || o?.core?.user_results?.result?.legacy?.screen_name
+          const idStr = o.id_str || o.tweet_id || o.rest_id || o?.legacy?.id_str
+          if (text && typeof text === 'string' && text.length > 8 && !seen.has(text.slice(0,60))) {
+            seen.add(text.slice(0,60))
+            found.push({
+              id: `twrapid-${idStr || Math.random().toString(36).slice(2,10)}`,
+              title: text.slice(0,220),
+              link: screen && idStr ? `https://twitter.com/${screen}/status/${idStr}` : '',
+              source: `@${screen || 'twitter'}`,
+              pubDate: o.created_at ? new Date(o.created_at).toISOString() : new Date().toISOString(),
+              platform: 'twitter', body: text,
+              engagement: (o.favorite_count || o.favorites || 0) + (o.retweet_count || o.retweets || 0),
+              views: Number(o.views || o?.views?.count || 0),
+            })
+          }
+          for (const k in o) walk(o[k], depth+1)
+        }
       }
-    }).filter((t:any) => t.title)
+      walk(d, 0)
+      results = found
+    }
+
+    console.log(`[TwitterRapid] "${kw}": ${results.length} tweets (keys: ${Object.keys(d).join(',')})`)
+    return results.slice(0,20).filter((t:any) => t.title)
   } catch(e:any) { console.warn(`[TwitterRapid] ${kw}:`, e.message); return [] }
 }
 
@@ -568,7 +605,7 @@ async function geminiSentiment(text) {
   }
   try {
     const prompt = 'Indian political news analyst. Rate this for a politician war room.\nReply ONLY with valid JSON, no markdown: {"bucket":"red|yellow|blue|silver","sentiment":"positive|negative|neutral","tone":-5}\nred=crisis/attack on politician, yellow=opposition threat/developing, blue=positive achievement, silver=neutral/routine\nDetect SARCASM: ironic praise = bucket yellow sentiment negative.\nNews: ' + text.slice(0, 400)
-    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_KEY, {
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + GEMINI_KEY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

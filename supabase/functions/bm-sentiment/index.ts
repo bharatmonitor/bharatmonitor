@@ -25,22 +25,26 @@ function kwScore(text) {
 
 async function geminiRate(text) {
   if (!GEMINI_KEY) return null
-  try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: `Rate this Indian political news. Reply ONLY with JSON {"bucket":"red|yellow|blue|silver","sentiment":"positive|negative|neutral","tone":-5..5}\n\n${text.slice(0,300)}` }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 60 },
-      }),
-      signal: AbortSignal.timeout(10000),
-    })
-    if (!r.ok) return null
-    const d   = await r.json()
-    const txt = d?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-    const m   = txt.match(/\{[\s\S]*?\}/)
-    return m ? JSON.parse(m[0]) : null
-  } catch { return null }
+  const MODELS = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.0-flash']
+  for (const model of MODELS) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `Rate this Indian political news. Reply ONLY with JSON {"bucket":"red|yellow|blue|silver","sentiment":"positive|negative|neutral","tone":-5..5}\n\n${text.slice(0,300)}` }] }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 60 },
+        }),
+        signal: AbortSignal.timeout(10000),
+      })
+      if (!r.ok) continue   // 429/quota/5xx → try next model
+      const d   = await r.json()
+      const txt = d?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+      const m   = txt.match(/\{[\s\S]*?\}/)
+      return m ? JSON.parse(m[0]) : null
+    } catch { continue }
+  }
+  return null
 }
 
 Deno.serve(async (req) => {

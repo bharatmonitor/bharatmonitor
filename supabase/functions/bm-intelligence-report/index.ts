@@ -12,22 +12,39 @@ const CORS = {
   'Content-Type': 'application/json',
 }
 
+// Model fallback chain — tries each in order; on 429/quota/5xx it cascades to
+// the next so at least one Gemini version answers. Order: workhorse first.
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.0-flash']
+
 async function callGemini(prompt: string, maxTokens = 3000): Promise<string> {
-  const r = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_KEY,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: maxTokens },
-      }),
-      signal: AbortSignal.timeout(55000),
+  let lastErr = ''
+  for (const model of GEMINI_MODELS) {
+    try {
+      const r = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + GEMINI_KEY,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.2, maxOutputTokens: maxTokens },
+          }),
+          signal: AbortSignal.timeout(55000),
+        }
+      )
+      if (r.ok) {
+        const d = await r.json()
+        return d?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+      }
+      lastErr = 'Gemini ' + r.status + ' (' + model + ')'
+      // 429 (quota) or 5xx → try next model; 4xx other → also try next
+      console.warn('[intelligence] ' + lastErr + ', trying next model')
+    } catch (e: any) {
+      lastErr = (e?.message || 'fetch error') + ' (' + model + ')'
+      console.warn('[intelligence] ' + lastErr + ', trying next model')
     }
-  )
-  if (!r.ok) throw new Error('Gemini ' + r.status + ': ' + await r.text().catch(() => ''))
-  const d = await r.json()
-  return d?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  }
+  throw new Error(lastErr || 'all Gemini models failed')
 }
 
 function extractJSON(text: string): any {
