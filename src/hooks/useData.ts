@@ -113,7 +113,13 @@ export function useFeedItems(accountId: string) {
         // — short place/role terms must appear in the headline, which stops passing
         // mentions in an article body from dragging in unrelated items.
         const strongKeys = trackedN.filter((k) => k.length >= 8)
+        // Social posts (X/Twitter, YouTube, Reddit, etc.) are fetched by an exact
+        // keyword SEARCH at ingest, so their keyword attribution is trustworthy —
+        // trust it rather than requiring the term to reappear in the short post text.
+        // News stays strict (Google News fuzzy-matches), which is what this gate is for.
+        const SOCIAL = ['twitter', 'youtube', 'instagram', 'facebook', 'reddit', 'bluesky']
         out = out.filter((item) => {
+          if (SOCIAL.includes((item.platform || '') as string) && item.keyword && trackedN.includes(norm(item.keyword))) return true
           const head  = norm(item.headline)
           const headN = nospace(item.headline)
           if (trackedN.some((k) => head.includes(k)) || trackedNS.some((k) => headN.includes(k))) return true

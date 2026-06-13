@@ -184,6 +184,7 @@ Return ONLY a JSON object (no markdown):
 // ─── Main handler ─────────────────────────────────────────────────────────────
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
+  try {
 
   let body: any
   try { body = await req.json() } catch {
@@ -289,4 +290,8 @@ Deno.serve(async (req) => {
   }, { onConflict: 'id' }).catch(() => {})
 
   return new Response(JSON.stringify(result), { headers: CORS })
+  } catch (e: any) {
+    console.error('[OppResearch] fatal:', e?.message)
+    return new Response(JSON.stringify({ ok: false, error: e?.message || 'research failed' }), { headers: CORS, status: 200 })
+  }
 })
